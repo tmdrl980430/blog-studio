@@ -23,3 +23,16 @@ default_schedule:
   fri: cs
   sat: csharp_windows
   sun: algorithm
+
+# 채널 만들기 → 블로그 준비 가이드, 썸네일 자동 생성에 사용 (shared/guides 참고)
+design:
+  accent: "#2F5BEA"
+  layout: "2단(본문 + 오른쪽 사이드바), 본문이 가장 넓은 형태"
+  categories: ["알고리즘·코테", "CS 기초", "C#·Windows", "회고"]
+  tistory_skin: Odyssey
+  thumbnail: typo_card
+  track_colors:
+    algorithm: "#2F5BEA"
+    cs: "#157F3B"
+    csharp_windows: "#6B3FA0"
+  guides: [naver, tistory, design]
