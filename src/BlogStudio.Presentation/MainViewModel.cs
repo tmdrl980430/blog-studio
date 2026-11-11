@@ -25,6 +25,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IClipboardService _clipboard;
     private readonly IBrowserLauncher _browser;
     private readonly Func<DateOnly> _today;
+    private readonly IClaudeCodeSetup? _setup;
 
     private ThemePack? _theme;
     private PromptBuilder? _prompts;
@@ -34,8 +35,10 @@ public sealed partial class MainViewModel : ObservableObject
     private string _bodyHtml = "";
 
     public MainViewModel(ThemeRepository themes, LocalStore store, IAiProvider provider,
-        IClipboardService clipboard, IBrowserLauncher browser, Func<DateOnly>? today = null)
+        IClipboardService clipboard, IBrowserLauncher browser, Func<DateOnly>? today = null,
+        IClaudeCodeSetup? setup = null)
     {
+        _setup = setup;
         _themes = themes;
         _store = store;
         _provider = provider;
@@ -54,7 +57,16 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _extraRequest = "";
     [ObservableProperty] private string _statusText = "준비 중…";
     [ObservableProperty] private string _providerStatus = "Claude Code 확인 중…";
-    [ObservableProperty] private bool _isProviderReady;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallClaudeCodeCommand))]
+    private bool _isProviderReady;
+
+    /// <summary>확인을 마쳤는데 Claude Code를 쓸 수 없을 때 설치 안내 카드를 보여 준다.</summary>
+    [ObservableProperty] private bool _showClaudeSetup;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallClaudeCodeCommand))]
+    private bool _isInstalling;
     [ObservableProperty] private string _previewHtml = "";
     [ObservableProperty] private string _postTitle = "";
     [ObservableProperty] private string _postTags = "";
@@ -91,11 +103,65 @@ public sealed partial class MainViewModel : ObservableObject
             StatusText = "준비 완료";
         }
 
+        await CheckProviderAsync();
+    }
+
+    [RelayCommand]
+    private async Task CheckProviderAsync()
+    {
+        ProviderStatus = "Claude Code 확인 중…";
         var version = await _provider.CheckAsync();
         IsProviderReady = version is not null;
+        ShowClaudeSetup = !IsProviderReady;
         ProviderStatus = IsProviderReady
             ? $"{_provider.Name} 연결됨 · {version}"
-            : "Claude Code를 찾지 못했어요 — 설치 후 터미널에서 claude로 로그인해 주세요";
+            : "Claude Code가 없어요 — 가운데 안내에서 자동 설치를 눌러 주세요";
+    }
+
+    private bool CanInstallClaudeCode() => _setup is not null && !IsProviderReady && !IsInstalling;
+
+    /// <summary>공식 설치 스크립트 실행 → 다시 확인 → 설치됐으면 로그인 창을 연다.</summary>
+    [RelayCommand(CanExecute = nameof(CanInstallClaudeCode))]
+    private async Task InstallClaudeCodeAsync(CancellationToken ct)
+    {
+        if (_setup is null) return;
+        IsInstalling = true;
+        StatusText = "Claude Code 설치 중… 새로 열린 창이 끝날 때까지 기다려 주세요";
+        try
+        {
+            var ok = await _setup.InstallAsync(ct);
+            await CheckProviderAsync();
+            if (IsProviderReady)
+            {
+                StatusText = "설치 완료 — 열린 창에서 Claude Pro 계정으로 로그인해 주세요";
+                _setup.OpenLoginTerminal();
+            }
+            else
+            {
+                StatusText = ok
+                    ? "설치는 끝났지만 claude를 찾지 못했어요. 앱을 다시 시작해 보세요"
+                    : "설치에 실패했어요. 설치 창의 메시지를 확인해 주세요";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "설치를 취소했어요";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "설치를 시작하지 못했어요: " + ex.Message;
+        }
+        finally
+        {
+            IsInstalling = false;
+        }
+    }
+
+    [RelayCommand]
+    private void OpenClaudeLogin()
+    {
+        _setup?.OpenLoginTerminal();
+        StatusText = "열린 창에서 로그인을 마친 뒤 \"다시 확인\"을 눌러 주세요";
     }
 
     /// <summary>설정이 바뀐 뒤 다시 읽기.</summary>

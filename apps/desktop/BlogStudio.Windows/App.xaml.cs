@@ -23,7 +23,8 @@ public partial class App : Application
             var themes = new ThemeRepository(ThemeRepository.LocateSharedRoot());
             var store = new LocalStore();
             var provider = new ClaudeCodeProvider(new SystemProcessRunner());
-            var viewModel = new MainViewModel(themes, store, provider, new WpfClipboardService(), new ShellBrowserLauncher());
+            var viewModel = new MainViewModel(themes, store, provider, new WpfClipboardService(), new ShellBrowserLauncher(),
+                setup: new WindowsClaudeCodeSetup());
 
             var window = new MainWindow(viewModel, store);
             MainWindow = window;

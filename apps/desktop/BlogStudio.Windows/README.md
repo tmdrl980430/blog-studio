@@ -4,9 +4,13 @@ WPF (.NET 8) 데스크톱 앱. 오늘의 주제로 **내 PC의 Claude Code(Claud
 
 ## 준비
 
-1. [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) (실행만 할 때는 .NET 8 데스크톱 런타임)
-2. Claude Code 설치 후 터미널에서 `claude` 를 한 번 실행해 Claude Pro 계정으로 로그인
-3. WebView2 런타임 (Windows 10/11에는 보통 이미 설치돼 있음)
+실행만 할 때는 따로 설치할 것이 없습니다.
+
+- **.NET**: 배포용 exe에 함께 들어 있습니다 (self-contained 단일 파일).
+- **Claude Code**: 없으면 앱 화면에 안내 카드가 뜨고, "자동 설치"를 누르면 공식 설치 스크립트가 실행된 뒤 로그인 창이 열립니다.
+- **WebView2 런타임**: Windows 10/11에는 보통 이미 있습니다. 없으면 앱이 Microsoft 설치 페이지로 안내합니다.
+
+코드를 직접 빌드할 때만 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)가 필요합니다.
 
 ## 실행
 
@@ -14,7 +18,7 @@ WPF (.NET 8) 데스크톱 앱. 오늘의 주제로 **내 PC의 Claude Code(Claud
 dotnet run --project apps/desktop/BlogStudio.Windows
 ```
 
-또는 GitHub Actions 실행 결과의 **Artifacts → BlogStudio-win-x64** 를 내려받아 `BlogStudio.exe` 실행.
+또는 GitHub Actions 실행 결과의 **Artifacts → BlogStudio-win-x64** 를 내려받아 `BlogStudio.exe` 실행 (`shared` 폴더와 같은 위치에 두기).
 
 ## 동작
 

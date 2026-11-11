@@ -67,3 +67,48 @@ public class MainViewModelTests
         Assert.Contains("## 오늘 공부할 내용", vm.PreviewHtml);
     }
 }
+
+public class ClaudeSetupFlowTests
+{
+    private sealed class SwitchableProvider : IAiProvider
+    {
+        public bool Installed;
+        public string Name => "Fake";
+        public Task<string?> CheckAsync(CancellationToken ct = default) => Task.FromResult(Installed ? "2.1.0" : null);
+        public Task<AiResult> GenerateAsync(AiRequest request, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeSetup(SwitchableProvider provider) : IClaudeCodeSetup
+    {
+        public bool LoginOpened;
+        public Task<bool> InstallAsync(CancellationToken ct = default) { provider.Installed = true; return Task.FromResult(true); }
+        public void OpenLoginTerminal() => LoginOpened = true;
+    }
+
+    private sealed class Noop : IClipboardService, IBrowserLauncher
+    {
+        public void SetHtml(string html, string plainText) { }
+        public void SetText(string text) { }
+        public void Open(string url) { }
+    }
+
+    [Fact]
+    public async Task Missing_claude_shows_setup_then_install_opens_login()
+    {
+        var provider = new SwitchableProvider();
+        var setup = new FakeSetup(provider);
+        var noop = new Noop();
+        var vm = new MainViewModel(Fixtures.Themes(), new LocalStore(Directory.CreateTempSubdirectory("bs-setup-").FullName),
+            provider, noop, noop, () => new DateOnly(2026, 11, 11), setup);
+
+        await vm.InitializeCommand.ExecuteAsync(null);
+        Assert.True(vm.ShowClaudeSetup);
+        Assert.True(vm.InstallClaudeCodeCommand.CanExecute(null));
+
+        await vm.InstallClaudeCodeCommand.ExecuteAsync(null);
+        Assert.True(vm.IsProviderReady);
+        Assert.False(vm.ShowClaudeSetup);
+        Assert.True(setup.LoginOpened);
+        Assert.False(vm.InstallClaudeCodeCommand.CanExecute(null));
+    }
+}

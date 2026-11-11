@@ -36,6 +36,16 @@ public partial class MainWindow : Window
                 _webReady = true;
                 Preview.NavigateToString(_vm.PreviewHtml);
             }
+            catch (Microsoft.Web.WebView2.Core.WebView2RuntimeNotFoundException)
+            {
+                // Windows 10/11 대부분에 이미 있지만, 없으면 Microsoft 공식 설치 프로그램으로 안내
+                var answer = MessageBox.Show(
+                    "미리보기에 필요한 Microsoft Edge WebView2 런타임이 없어요.\n지금 설치 페이지를 열까요? 설치 후 앱을 다시 시작해 주세요.",
+                    "Blog Studio", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (answer == MessageBoxResult.Yes)
+                    new Services.ShellBrowserLauncher().Open("https://go.microsoft.com/fwlink/p/?LinkId=2124703");
+                _vm.StatusText = "미리보기를 쓰려면 WebView2 런타임 설치가 필요해요";
+            }
             catch (Exception ex)
             {
                 _vm.StatusText = "미리보기(WebView2)를 시작하지 못했어요: " + ex.Message;

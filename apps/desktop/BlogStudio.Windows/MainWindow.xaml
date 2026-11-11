@@ -68,6 +68,23 @@
             <!-- 오늘의 주제 + 생성 -->
             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="20">
+                    <!-- Claude Code가 없을 때: 설치·로그인 안내 -->
+                    <Border Background="#FFF6E5" BorderBrush="#F2C879" BorderThickness="1" CornerRadius="10" Padding="14" Margin="0,0,0,18"
+                            Visibility="{Binding ShowClaudeSetup, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="Claude Code가 필요해요" FontWeight="Bold" FontSize="14" />
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#5B4A1F" Margin="0,4,0,10"
+                                       Text="Claude Pro 구독으로 글을 쓰려면 이 PC에 Claude Code가 있어야 해요. 자동 설치를 누르면 공식 설치 프로그램이 실행되고, 끝나면 로그인 창이 열립니다." />
+                            <WrapPanel>
+                                <Button Content="자동 설치" Style="{StaticResource PrimaryButton}" Command="{Binding InstallClaudeCodeCommand}" Margin="0,0,6,6" />
+                                <Button Content="로그인 창 열기" Style="{StaticResource SecondaryButton}" Command="{Binding OpenClaudeLoginCommand}" Margin="0,0,6,6" />
+                                <Button Content="다시 확인" Style="{StaticResource SecondaryButton}" Command="{Binding CheckProviderCommand}" Margin="0,0,0,6" />
+                            </WrapPanel>
+                            <ProgressBar IsIndeterminate="True" Height="3"
+                                         Visibility="{Binding IsInstalling, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </Border>
+
                     <TextBlock FontSize="12" Foreground="{StaticResource Muted}">
                         <Run Text="{Binding DateLabel, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding TrackName, Mode=OneWay}" />
                     </TextBlock>
