@@ -1,0 +1,36 @@
+name: C# · Windows 개발
+guide: >
+  최신 .NET(.NET 8 이상, C# 12 이상) 기준으로 작성. 예제는 그대로 복사해 실행 가능한
+  완결된 코드(필요하면 csproj 설정/NuGet 패키지 명시). 개념 → 예제 코드 → 실행 결과
+  → 실무에서 주의할 점 → 정리 순서. WinForms/WPF 비교가 의미 있으면 함께 언급.
+topics:
+  - .NET 생태계 정리 — .NET Framework vs .NET(Core), CLR, SDK와 런타임
+  - C# 기본 타입 — 값 형식 vs 참조 형식, 박싱/언박싱
+  - 클래스, 구조체, record의 차이
+  - 속성(Property), 인덱서, 이벤트
+  - 인터페이스와 추상 클래스
+  - 제네릭과 제약 조건
+  - 컬렉션 — List, Dictionary, HashSet, IEnumerable
+  - 델리게이트, Func/Action, 람다
+  - LINQ 기초와 지연 실행
+  - 예외 처리와 using/IDisposable
+  - async/await와 Task — UI 스레드가 멈추지 않게 하기
+  - 가비지 컬렉션과 메모리 관리
+  - nullable 참조 형식과 패턴 매칭
+  - WinForms 기초 — 폼, 컨트롤, 이벤트 핸들러
+  - WinForms에서 크로스 스레드 UI 업데이트 — Invoke/BeginInvoke
+  - WPF 기초 — XAML과 레이아웃
+  - WPF 데이터 바인딩과 INotifyPropertyChanged
+  - MVVM 패턴 — CommunityToolkit.Mvvm 활용
+  - WPF 커맨드, 스타일, 템플릿
+  - 의존성 주입(Microsoft.Extensions.DependencyInjection) 데스크톱 앱 적용
+  - 파일 I/O와 JSON 직렬화(System.Text.Json)
+  - HttpClient로 REST API 호출하기
+  - Entity Framework Core + SQLite 로컬 DB
+  - Windows 서비스 / Worker Service 만들기
+  - 레지스트리, 환경 변수, 특수 폴더 다루기
+  - P/Invoke로 Win32 API 호출하기
+  - 프로세스 간 통신 — Named Pipe
+  - 로깅 — Serilog/Microsoft.Extensions.Logging
+  - 단위 테스트 — xUnit과 Moq
+  - 배포 — 단일 파일 게시, MSIX, 인스톨러

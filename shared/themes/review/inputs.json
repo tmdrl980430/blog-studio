@@ -1,0 +1,11 @@
+{
+  "fields": [
+    {"key": "product", "label": "제품명", "type": "text", "required": true},
+    {"key": "price", "label": "구매 가격", "type": "text"},
+    {"key": "store", "label": "구매처", "type": "text"},
+    {"key": "period", "label": "사용 기간", "type": "text"},
+    {"key": "pros", "label": "좋았던 점 메모", "type": "textarea", "required": true},
+    {"key": "cons", "label": "아쉬운 점 메모", "type": "textarea"},
+    {"key": "photos", "label": "사진", "type": "images", "max": 10}
+  ]
+}

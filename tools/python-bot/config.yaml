@@ -1,0 +1,40 @@
+# ───────── 기술 블로그 자동 작성기 설정 ─────────
+
+# 글을 쓰는 방식
+#   claude-code : 내 Claude 구독(Pro/Max)으로 작성. API 크레딧 충전 불필요. Claude Code 설치·로그인 필요.
+#   api         : Claude API 키(선불 크레딧)로 작성. .env에 ANTHROPIC_API_KEY 필요.
+engine: claude-code
+
+# engine: claude-code 일 때 모델 (sonnet / opus / haiku)
+claude_code_model: sonnet
+
+# engine: api 일 때 모델 (비용을 줄이려면 claude-haiku-5-5, 품질 우선이면 claude-opus-5-5)
+model: claude-sonnet-5-5
+max_tokens: 8000
+
+# 블로그 정보: 글쓰기 화면 바로가기 버튼에 사용 (비워두면 버튼이 숨겨짐)
+blogs:
+  naver_id: ""          # 예: tmdrl980430  → https://blog.naver.com/tmdrl980430
+  tistory_name: ""      # 예: seungki       → https://seungki.tistory.com
+
+# 요일별 트랙 (mon~sun). 트랙 이름은 curriculum/ 폴더의 파일명과 같아야 함.
+# 매일 작성 (쉬는 날 없음). 특정 요일을 쉬고 싶으면 값을 rest 로 바꾸면 됨.
+# --track 옵션으로 언제든 직접 지정 가능.
+schedule:
+  mon: algorithm
+  tue: cs
+  wed: csharp_windows
+  thu: algorithm
+  fri: cs
+  sat: csharp_windows
+  sun: algorithm
+
+# 글 스타일
+writing:
+  author: 김승기
+  tone: "공부한 내용을 정리하는 개발자 블로그. 존댓말(~합니다/~해요 혼용 가능), 너무 딱딱하지 않게."
+  length: "본문 3,000~5,000자 내외"
+
+# 결과물 저장 위치 / 생성 후 미리보기 자동으로 열기
+output_dir: output
+open_preview: true

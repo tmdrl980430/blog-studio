@@ -1,0 +1,1 @@
+{ "fields": [ {"key": "extra", "label": "추가 요청 (선택)", "type": "textarea"} ] }
