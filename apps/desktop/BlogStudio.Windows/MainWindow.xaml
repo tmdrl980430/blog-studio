@@ -118,6 +118,36 @@
                     <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
                                  Visibility="{Binding IsGenerating, Converter={StaticResource BoolToVis}}" />
 
+                    <!-- 이번 글의 이미지: 블로그 편집기의 [이미지 N] 자리에 하나씩 붙여넣기 -->
+                    <StackPanel Visibility="{Binding HasImages, Converter={StaticResource BoolToVis}}" Margin="0,24,0,0">
+                        <DockPanel Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Content="폴더 열기" Style="{StaticResource SecondaryButton}" Command="{Binding OpenImagesFolderCommand}" />
+                            <TextBlock Text="이미지" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <TextBlock Text="본문의 [이미지 N] 자리에서 '복사'한 이미지를 Ctrl+V로 붙여넣으세요." FontSize="11"
+                                   Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                        <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10">
+                            <ItemsControl ItemsSource="{Binding Images}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="#EEF0F3" BorderThickness="0,0,0,1" Padding="10">
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Width="72" Height="44" Stretch="UniformToFill" Margin="0,0,10,0" Source="{Binding FullPath}" />
+                                                <Button DockPanel.Dock="Right" Content="복사" Style="{StaticResource SecondaryButton}" VerticalAlignment="Center"
+                                                        Command="{Binding DataContext.CopyImageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}" />
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding Caption}" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+                    </StackPanel>
+
                     <TextBlock Text="다음 주제" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,24,0,8" />
                     <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10">
                         <ItemsControl ItemsSource="{Binding UpcomingTopics}">

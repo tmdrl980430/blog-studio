@@ -64,7 +64,9 @@ public class MainViewModelTests
         Assert.Equal("https://blog.naver.com/myblog?Redirect=Write", browser.Url);
 
         vm.CopyForTistoryCommand.Execute(null);                        // 티스토리: HTML 소스를 텍스트로
-        Assert.StartsWith("<h2 style=", clipboard.Text);
+        Assert.Contains("<h2 style=", clipboard.Text);
+        Assert.Contains("[이미지 1:", clipboard.Text);                  // 썸네일 자리 표시
+        Assert.Contains(vm.Images, i => i.KindLabel == "썸네일" && File.Exists(i.FullPath));
 
         vm.ShowMarkdownCommand.Execute(null);
         Assert.Contains("## 오늘 공부할 내용", vm.PreviewHtml);

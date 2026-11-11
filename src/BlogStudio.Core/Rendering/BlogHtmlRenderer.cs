@@ -25,7 +25,35 @@ public static class BlogHtmlRenderer
         ["th"] = "border:1px solid #ccc;background:#f5f5f5;padding:8px 12px;text-align:left;",
         ["td"] = "border:1px solid #ccc;padding:8px 12px;",
         ["hr"] = "border:none;border-top:1px solid #ddd;margin:28px 0;",
+        ["img"] = "max-width:100%;height:auto;display:block;margin:16px auto;border-radius:4px;",
     };
+
+    internal const string ImagePlaceholder =
+        "border:2px dashed #9bb2f5;background:#f5f8ff;color:#1e3fb0;padding:14px 16px;border-radius:8px;font-size:15px;margin:16px 0;";
+    private static readonly Regex MarkdownImage = new(@"^!\[(?<alt>[^\]]*)\]\((?<src>[^)\s]+)\)\s*$", RegexOptions.Multiline);
+
+    /// <summary>
+    /// 블로그 붙여넣기용: 로컬 이미지는 에디터가 올리지 못하므로 "[이미지 N: 설명] 이 자리에 붙여넣기" 표시로 바꾼다.
+    /// 사용자는 앱의 이미지 목록에서 N번을 복사해 그 자리에 붙여넣는다.
+    /// </summary>
+    public static string ReplaceImagesWithPlaceholders(string markdown)
+    {
+        var n = 0;
+        return MarkdownImage.Replace(markdown, m =>
+        {
+            n++;
+            return $"<p class=\"bs-image\">[이미지 {n}: {WebUtility.HtmlEncode(m.Groups["alt"].Value)}] — 이 자리에 앱의 이미지 {n}을 붙여넣으세요</p>";
+        });
+    }
+
+    /// <summary>본문에 나오는 순서대로의 이미지 경로 (자리 표시 번호와 같은 순서).</summary>
+    public static IReadOnlyList<string> ImageSourcesInOrder(string markdown) =>
+        MarkdownImage.Matches(markdown).Select(m => m.Groups["src"].Value).ToList();
+
+    /// <summary>미리보기용: images/x.png 같은 상대 경로를 글 폴더 기준 file:/// 주소로 바꾼다.</summary>
+    public static string AbsolutizeImages(string html, string postFolder) =>
+        Regex.Replace(html, "src=\"(?!https?:|file:|data:)(?<rel>[^\"]+)\"",
+            m => $"src=\"{new Uri(Path.Combine(postFolder, m.Groups["rel"].Value.Replace('/', Path.DirectorySeparatorChar))).AbsoluteUri}\"");
 
     internal const string InlineCode =
         "background:#f1f1f1;color:#c7254e;padding:2px 5px;border-radius:4px;font-family:Consolas,monospace;font-size:14px;";
@@ -55,9 +83,14 @@ public static class BlogHtmlRenderer
         // 인라인 코드 (속성 없는 <code>만)
         html = html.Replace("<code>", $"<code style=\"{InlineCode}\">");
 
+        // 이미지 자리 표시 (Markdig이 HTML 블록을 그대로 통과시킨 <p class="bs-image">)
+        html = html.Replace("<p class=\"bs-image\">", $"<p data-image-slot=\"true\" style=\"{ImagePlaceholder}\">");
+
         foreach (var (tag, style) in TagStyles)
             html = Regex.Replace(html, $"<{tag}(?<attrs>\\s[^>]*)?>",
-                m => $"<{tag} style=\"{style}\"{m.Groups["attrs"].Value}>");
+                m => m.Groups["attrs"].Value.Contains("style=") && tag == "p"
+                    ? m.Value
+                    : $"<{tag} style=\"{style}\"{m.Groups["attrs"].Value}>");
         return html.Trim();
     }
 

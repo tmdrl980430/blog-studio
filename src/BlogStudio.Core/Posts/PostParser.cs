@@ -42,7 +42,10 @@ public static class PostParser
             BodyMarkdown: m.Groups["body"].Value.Trim(),
             Topic: topic,
             TrackKey: trackKey,
-            Date: date);
+            Date: date,
+            ThumbnailLines: AsTags(meta.GetValueOrDefault("thumbnail")) is { Count: > 0 } lines ? lines : null,
+            PhotoQuery: AsString(meta, "photo_query"),
+            IllustrationPrompt: AsString(meta, "illustration"));
     }
 
     private static string AsString(Dictionary<string, object?> meta, string key) =>

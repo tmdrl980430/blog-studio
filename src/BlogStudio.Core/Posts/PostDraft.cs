@@ -8,7 +8,10 @@ public sealed record PostDraft(
     string BodyMarkdown,
     string Topic,
     string TrackKey,
-    DateOnly Date)
+    DateOnly Date,
+    IReadOnlyList<string>? ThumbnailLines = null,
+    string PhotoQuery = "",
+    string IllustrationPrompt = "")
 {
     public string TagLine => string.Join(" ", Tags.Select(t => "#" + t));
 }

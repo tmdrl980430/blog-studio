@@ -1,31 +1,68 @@
 <Window x:Class="BlogStudio.Windows.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="설정" Width="460" SizeToContent="Height" ResizeMode="NoResize"
+        Title="설정" Width="500" Height="720" ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner" FontFamily="{StaticResource UiFont}" Background="White">
-    <StackPanel Margin="24">
-        <TextBlock Text="설정" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
-
-        <TextBlock Text="작성자 이름 (글 말투에 사용)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <TextBox Text="{Binding Author, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
-
-        <TextBlock Text="네이버 블로그 ID (blog.naver.com/아이디)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <TextBox Text="{Binding NaverBlogId, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
-
-        <TextBlock Text="티스토리 이름 (이름.tistory.com)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <TextBox Text="{Binding TistoryName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
-
-        <TextBlock Text="Claude 모델" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
-        <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding ClaudeModel}" Height="32" Margin="0,0,0,4" />
-        <TextBlock Text="sonnet 권장 · opus는 품질↑ 사용량↑ · haiku는 가볍고 빠름" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,12" />
-
-        <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,16">
-            <Run Text="데이터 저장 위치: " /><Run Text="{Binding DataFolder, Mode=OneWay}" />
-        </TextBlock>
-
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,12,24,20">
             <Button Content="취소" Style="{StaticResource SecondaryButton}" IsCancel="True" Margin="0,0,8,0" />
             <Button Content="저장" Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" IsDefault="True" />
         </StackPanel>
-    </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,24,24,0">
+                <TextBlock Text="설정" FontSize="18" FontWeight="Bold" Margin="0,0,0,16" />
+
+                <TextBlock Text="작성자 이름 (글 말투에 사용)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBox Text="{Binding Author, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
+
+                <TextBlock Text="네이버 블로그 ID (blog.naver.com/아이디)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBox Text="{Binding NaverBlogId, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
+
+                <TextBlock Text="티스토리 이름 (이름.tistory.com)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBox Text="{Binding TistoryName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
+
+                <TextBlock Text="Claude 모델" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding ClaudeModel}" Height="32" Margin="0,0,0,4" />
+                <TextBlock Text="sonnet 권장 · opus는 품질↑ 사용량↑ · haiku는 가볍고 빠름" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,20" />
+
+                <!-- 이미지 -->
+                <TextBlock Text="이미지" FontSize="15" FontWeight="Bold" Margin="0,0,0,10" />
+
+                <CheckBox Content="썸네일 자동 생성 (타이포 카드, 무료)" IsChecked="{Binding ThumbnailEnabled}" Margin="0,0,0,6" />
+                <TextBlock Text="썸네일에 넣을 블로그 이름 (비우면 작성자 이름)" FontSize="12" Margin="22,0,0,4" />
+                <TextBox Text="{Binding BlogDisplayName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="22,0,0,12" />
+
+                <CheckBox Content="개념 그림·다이어그램 (Claude가 그림, 무료)" IsChecked="{Binding DiagramsEnabled}" Margin="0,0,0,16" />
+
+                <TextBlock Text="무료 사진 — Pexels API 키" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,2" />
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,4">
+                    pexels.com/api 에서 무료로 발급. 넣어 두면 글마다 어울리는 사진 1장과 출처가 들어갑니다.
+                </TextBlock>
+                <DockPanel Margin="0,0,0,4">
+                    <Button DockPanel.Dock="Right" Content="지우기" Style="{StaticResource SecondaryButton}" Command="{Binding ClearPexelsKeyCommand}" Margin="6,0,0,0" />
+                    <TextBox Text="{Binding PexelsKeyInput, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" />
+                </DockPanel>
+                <TextBlock Text="{Binding PexelsKeyStatus}" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,16" />
+
+                <CheckBox Content="AI 이미지 생성 (OpenAI, 쓴 만큼 과금)" IsChecked="{Binding AiImagesEnabled}" Margin="0,0,0,4" />
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="22,0,0,4">
+                    본인 OpenAI API 키로 글마다 일러스트 1장. 품질 low가 가장 저렴합니다 (Claude Pro와 별개 요금).
+                </TextBlock>
+                <DockPanel Margin="22,0,0,4">
+                    <Button DockPanel.Dock="Right" Content="지우기" Style="{StaticResource SecondaryButton}" Command="{Binding ClearOpenAiKeyCommand}" Margin="6,0,0,0" />
+                    <TextBox Text="{Binding OpenAiKeyInput, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" />
+                </DockPanel>
+                <TextBlock Text="{Binding OpenAiKeyStatus}" FontSize="11" Foreground="{StaticResource Muted}" Margin="22,0,0,6" />
+                <StackPanel Orientation="Horizontal" Margin="22,0,0,16">
+                    <TextBlock Text="품질" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding QualityOptions}" SelectedItem="{Binding OpenAiImageQuality}" Width="120" Height="30" />
+                </StackPanel>
+
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8">
+                    <Run Text="API 키는 이 PC의 Windows 계정으로 암호화해 저장합니다. 데이터 위치: " /><Run Text="{Binding DataFolder, Mode=OneWay}" />
+                </TextBlock>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
 </Window>

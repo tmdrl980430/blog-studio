@@ -16,6 +16,31 @@ public sealed class WpfClipboardService : IClipboardService
     }
 
     public void SetText(string text) => Clipboard.SetText(text);
+
+    public void SetImage(string path)
+    {
+        var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;   // 파일을 잠그지 않게
+        bitmap.UriSource = new Uri(path);
+        bitmap.EndInit();
+        bitmap.Freeze();
+        Clipboard.SetImage(bitmap);
+    }
+}
+
+/// <summary>API 키를 현재 Windows 사용자만 풀 수 있게 DPAPI로 암호화.</summary>
+public sealed class DpapiSecretProtector : BlogStudio.Core.Storage.ISecretProtector
+{
+    private static readonly byte[] Entropy = System.Text.Encoding.UTF8.GetBytes("BlogStudio.v1");
+
+    public string Protect(string plain) => Convert.ToBase64String(
+        System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(plain), Entropy,
+            System.Security.Cryptography.DataProtectionScope.CurrentUser));
+
+    public string Unprotect(string protectedValue) => System.Text.Encoding.UTF8.GetString(
+        System.Security.Cryptography.ProtectedData.Unprotect(Convert.FromBase64String(protectedValue), Entropy,
+            System.Security.Cryptography.DataProtectionScope.CurrentUser));
 }
 
 public sealed class ShellBrowserLauncher : IBrowserLauncher

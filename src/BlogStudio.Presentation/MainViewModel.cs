@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using BlogStudio.Core;
 using BlogStudio.Core.Ai;
+using BlogStudio.Core.Images;
 using BlogStudio.Core.Posts;
 using BlogStudio.Core.Prompting;
 using BlogStudio.Core.Rendering;
@@ -16,6 +17,12 @@ public enum PreviewMode { Rendered, Markdown }
 
 public sealed record UpcomingTopicItem(string Label);
 
+/// <summary>미리보기 아래 이미지 목록의 한 장. Number는 본문의 [이미지 N] 자리 표시와 같다.</summary>
+public sealed record ImageItem(int Number, string KindLabel, string Caption, string FullPath, string? Credit)
+{
+    public string Title => $"이미지 {Number} · {KindLabel}";
+}
+
 /// <summary>메인 화면: 오늘의 주제 → 생성 → 미리보기 → 복사. WPF·Avalonia가 같이 쓴다.</summary>
 public sealed partial class MainViewModel : ObservableObject
 {
@@ -27,6 +34,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly Func<DateOnly> _today;
     private readonly IClaudeCodeSetup? _setup;
     private readonly IUpdateService? _updates;
+    private readonly IImageServices? _imageServices;
+    private string _folder = "";
+    private string _previewBodyHtml = "";
 
     private ThemePack? _theme;
     private PromptBuilder? _prompts;
@@ -37,8 +47,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel(ThemeRepository themes, LocalStore store, IAiProvider provider,
         IClipboardService clipboard, IBrowserLauncher browser, Func<DateOnly>? today = null,
-        IClaudeCodeSetup? setup = null, IUpdateService? updates = null)
+        IClaudeCodeSetup? setup = null, IUpdateService? updates = null, IImageServices? imageServices = null)
     {
+        _imageServices = imageServices;
         _setup = setup;
         _updates = updates;
         _themes = themes;
@@ -51,6 +62,10 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     public ObservableCollection<UpcomingTopicItem> UpcomingTopics { get; } = new();
+
+    public ObservableCollection<ImageItem> Images { get; } = new();
+
+    [ObservableProperty] private bool _hasImages;
 
     [ObservableProperty] private string _themeName = "";
     [ObservableProperty] private string _dateLabel = "";
@@ -117,10 +132,10 @@ public sealed partial class MainViewModel : ObservableObject
         ThemeName = _theme.Name;
         RefreshPlan();
 
-        if (_store.LoadLatestPost() is { } latest)
+        if (_store.LoadLatest() is { } latest)
         {
             ShowPost(latest);
-            StatusText = $"최근 글을 불러왔어요 · {latest.Date:MM/dd}";
+            StatusText = $"최근 글을 불러왔어요 · {latest.Post.Date:MM/dd}";
         }
         else
         {
@@ -284,12 +299,19 @@ public sealed partial class MainViewModel : ObservableObject
 
             var post = PostParser.Parse(result.Text, _plan.Topic ?? "(자동 선정)", _plan.Track.Key, _today());
             if (_plan.Topic is null) post = post with { Topic = post.Title };
-            _store.SavePost(post, advanceProgress: _plan.Topic is not null);
 
-            ShowPost(post);
+            StatusText = "이미지 만드는 중… (썸네일·그림·사진)";
+            var folder = _store.CreatePostFolder(post);
+            var images = await ImagePipeline.RunAsync(post, folder, BuildImageOptions(_plan), ct);
+            post = post with { BodyMarkdown = images.BodyMarkdown };
+            _store.SavePost(post, _plan.Topic is not null, folder, images.Images);
+
+            ShowPost(new SavedPost(post, folder, images.Images));
             ExtraRequest = "";
             RefreshPlan();
-            StatusText = $"완료 · {result.Model}로 작성했어요";
+            StatusText = images.Warnings.Count == 0
+                ? $"완료 · {result.Model}로 작성, 이미지 {images.Images.Count}장"
+                : $"완료 · 이미지 {images.Images.Count}장 (확인: {string.Join(" / ", images.Warnings)})";
         }
         catch (OperationCanceledException)
         {
@@ -305,14 +327,56 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private void ShowPost(PostDraft post)
+    private ImagePipelineOptions BuildImageOptions(PlannedTopic plan) => new()
     {
+        Thumbnail = _settings.ThumbnailEnabled,
+        ThumbnailLabel = $"{plan.Track.Name} · {plan.Index + 1}",
+        ThumbnailColor = _theme?.ColorFor(plan.Track.Key) ?? "#2F5BEA",
+        BlogName = string.IsNullOrWhiteSpace(_settings.BlogDisplayName) ? _settings.Author : _settings.BlogDisplayName,
+        Diagrams = _settings.DiagramsEnabled,
+        Photos = _imageServices?.Photos(_settings),
+        Generator = _imageServices?.Generator(_settings),
+    };
+
+    private void ShowPost(SavedPost saved)
+    {
+        var post = saved.Post;
         _post = post;
-        _bodyHtml = BlogHtmlRenderer.ToBlogHtml(post.BodyMarkdown);
+        _folder = saved.Folder;
+        // 붙여넣기용: 이미지 자리는 "[이미지 N]" 표시 / 미리보기용: 실제 이미지
+        _bodyHtml = BlogHtmlRenderer.ToBlogHtml(BlogHtmlRenderer.ReplaceImagesWithPlaceholders(post.BodyMarkdown));
+        _previewBodyHtml = BlogHtmlRenderer.AbsolutizeImages(BlogHtmlRenderer.ToBlogHtml(post.BodyMarkdown), saved.Folder);
+
+        Images.Clear();
+        var number = 0;
+        foreach (var src in BlogHtmlRenderer.ImageSourcesInOrder(post.BodyMarkdown))
+        {
+            number++;
+            var meta = saved.Images.FirstOrDefault(i => i.RelativePath == src);
+            var full = Path.Combine(saved.Folder, src.Replace('/', Path.DirectorySeparatorChar));
+            Images.Add(new ImageItem(number, meta?.KindLabel ?? "이미지", meta?.Caption ?? "", full, meta?.Credit));
+        }
+        HasImages = Images.Count > 0;
+
         PostTitle = post.Title;
         PostTags = post.TagLine;
         PostReady = true;
         RenderPreview();
+    }
+
+    [RelayCommand]
+    private void CopyImage(ImageItem? item)
+    {
+        if (item is null || !File.Exists(item.FullPath)) return;
+        _clipboard.SetImage(item.FullPath);
+        StatusText = $"이미지 {item.Number}을 복사했어요 — 글쓰기 화면의 [이미지 {item.Number}] 자리에서 Ctrl+V";
+    }
+
+    [RelayCommand]
+    private void OpenImagesFolder()
+    {
+        var dir = Path.Combine(_folder, ImagePipeline.ImagesDir);
+        if (Directory.Exists(dir)) _browser.Open(dir);
     }
 
     partial void OnPreviewModeChanged(PreviewMode value) => RenderPreview();
@@ -322,7 +386,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_post is null) return;
         PreviewHtml = PreviewMode == PreviewMode.Markdown
             ? BlogHtmlRenderer.ToMarkdownPage(_post.BodyMarkdown)
-            : BlogHtmlRenderer.ToPreviewPage(_post, _bodyHtml);
+            : BlogHtmlRenderer.ToPreviewPage(_post, _previewBodyHtml);
     }
 
     /// <summary>같은 모드를 다시 눌러도 항상 다시 그린다 (이전엔 값이 같으면 아무 일도 없었음).</summary>
@@ -350,7 +414,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_post is null) return;
         var path = Path.Combine(_store.Root, "preview.html");
-        File.WriteAllText(path, BlogHtmlRenderer.ToPreviewPage(_post, _bodyHtml));
+        File.WriteAllText(path, BlogHtmlRenderer.ToPreviewPage(_post, _previewBodyHtml));
         _browser.Open(new Uri(path).AbsoluteUri);
         StatusText = "미리보기를 브라우저로 열었어요";
     }
@@ -391,7 +455,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void CopyMarkdown()
     {
         if (_post is null) return;
-        _clipboard.SetText(_post.BodyMarkdown + "\n\n" + _post.TagLine);
+        _clipboard.SetText(BlogHtmlRenderer.ReplaceImagesWithPlaceholders(_post.BodyMarkdown) + "\n\n" + _post.TagLine);
         StatusText = "마크다운을 복사했어요 (티스토리 마크다운 모드에 붙여넣기)";
     }
 
