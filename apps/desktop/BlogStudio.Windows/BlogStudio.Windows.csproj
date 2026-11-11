@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>BlogStudio</AssemblyName>
+    <RootNamespace>BlogStudio.Windows</RootNamespace>
+    <Product>Blog Studio</Product>
+    <Version>0.1.0</Version>
+    <!-- Velopack이 앱 시작 직후 먼저 실행되도록 직접 만든 Main(App.Main)을 진입점으로 -->
+    <StartupObject>BlogStudio.Windows.App</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2210.55" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+
+  <!-- App.xaml을 Page로 두어 WPF가 자동 Main을 만들지 않게 함 (App.Main과 충돌 방지, Velopack 샘플 방식) -->
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\BlogStudio.Presentation\BlogStudio.Presentation.csproj" />
+  </ItemGroup>
+
+  <!-- 테마 팩·공통 프롬프트를 실행 폴더의 shared\ 로 복사 -->
+  <ItemGroup>
+    <Content Include="..\..\..\shared\**\*" LinkBase="shared" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
