@@ -15,3 +15,11 @@ structure:
 rules:
   - "메모에 없는 브랜드·가격은 만들지 않음"
   - "사진 자리에는 [사진 N: 설명] 표시만 넣음"
+
+design:
+  accent: "#9D3B6B"
+  layout: "1단, 사진 중심"
+  categories: ["계절별 코디", "아우터", "상의", "신발"]
+  tistory_skin: Odyssey
+  thumbnail: square_photo       # 착용 사진 정사각형, 글자 최소
+  guides: [naver, tistory, design]

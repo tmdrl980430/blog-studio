@@ -15,3 +15,11 @@ structure:
 rules:
   - "메모에 없는 가격·스펙·수치는 만들지 말고 '(확인 필요)'로 남김"
   - "사진 자리에는 [사진 N: 설명] 표시만 넣음"
+
+design:
+  accent: "#C2410C"
+  layout: "2단, 사진은 본문 가로 전체"
+  categories: ["전자기기", "생활", "데스크셋업"]
+  tistory_skin: Odyssey
+  thumbnail: photo_with_caption   # 제품 사진 + 아래 띠에 한 줄 평
+  guides: [naver, tistory, design]
