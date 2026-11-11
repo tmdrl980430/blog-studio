@@ -20,6 +20,12 @@
     <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
+  <!-- App.xaml을 Page로 두어 WPF가 자동 Main을 만들지 않게 함 (App.Main과 충돌 방지, Velopack 샘플 방식) -->
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\BlogStudio.Presentation\BlogStudio.Presentation.csproj" />
   </ItemGroup>
