@@ -358,8 +358,19 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanCopy))]
     private void CopyForNaver() => CopyBodyAndOpen(BlogTargets.NaverWriteUrl(_settings.NaverBlogId), "네이버");
 
+    /// <summary>
+    /// 티스토리 기본 모드는 붙여넣은 표의 구조·스타일을 깨뜨리므로, HTML 소스를 텍스트로 복사해
+    /// 에디터를 HTML 모드로 바꾼 뒤 붙여넣게 한다 (표·코드 블록이 그대로 유지됨).
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanCopy))]
-    private void CopyForTistory() => CopyBodyAndOpen(BlogTargets.TistoryWriteUrl(_settings.TistoryName), "티스토리");
+    private void CopyForTistory()
+    {
+        if (_post is null) return;
+        _clipboard.SetText(_bodyHtml);
+        var url = BlogTargets.TistoryWriteUrl(_settings.TistoryName);
+        if (url is not null) _browser.Open(url);
+        StatusText = "HTML을 복사했어요 — 티스토리 글쓰기 오른쪽 위 '기본모드'를 'HTML'로 바꾼 뒤 Ctrl+V";
+    }
 
     private void CopyBodyAndOpen(string? url, string blog)
     {
