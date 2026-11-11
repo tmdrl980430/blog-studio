@@ -44,6 +44,9 @@ public sealed class AutoFillRunner
         return string.IsNullOrEmpty(json) || json == "null" ? null : JsonNode.Parse(json);
     }
 
+    private async Task<int> IntAsync(string call) =>
+        (await Js($"window.__bs.{call}"))?.GetValue<int>() ?? 0;
+
     private async Task<(int X, int Y)?> Point(string call)
     {
         var node = await Js($"window.__bs.{call}");
@@ -146,21 +149,34 @@ public sealed class AutoFillRunner
             ct.ThrowIfCancellationRequested();
             var n = i + 1;
             if (await Point($"selectPlaceholder({n})") is null) { _log($"이미지 {n}: 자리 표시를 찾지 못해 건너뜀"); continue; }
+            var before = await IntAsync("imageCount()");
 
             _clipboard.SetImage(_post.ImagePaths[i]);
             _focusWebView();
             await Task.Delay(150, ct);
             await PasteAsync();
 
-            // 업로드가 끝나 자리 표시가 사라질 때까지 기다린다. 이미지만 들어가고 글자가 남으면 지운다.
-            var gone = false;
-            for (var t = 0; t < 20 && !gone; t++)
+            // 이미지가 업로드돼 본문에 들어올 때까지 (최대 20초)
+            var arrived = false;
+            for (var t = 0; t < 40 && !arrived; t++)
             {
                 await Task.Delay(500, ct);
-                gone = (await Js($"window.__bs.hasPlaceholder({n})"))?.GetValue<bool>() != true;
+                arrived = await IntAsync("imageCount()") > before
+                          || (await Js($"window.__bs.hasPlaceholder({n})"))?.GetValue<bool>() != true;
             }
-            if (!gone && await Point($"selectPlaceholder({n})") is not null)
-                await KeyAsync("Delete", "Delete", 0x2E, commands: new[] { "deleteForward" });
+            if (!arrived) { _log($"이미지 {n}: 업로드가 확인되지 않았어요 — 안내 줄은 남겨 둘게요"); continue; }
+
+            // 이미지가 들어오고 안내 줄이 남아 있으면 지운다
+            await Task.Delay(300, ct);
+            var removed = (await Js($"window.__bs.removePlaceholder({n})"))?.GetValue<string>();
+            if (removed == "select")
+            {
+                _focusWebView();
+                await KeyAsync("Backspace", "Backspace", 0x08, commands: new[] { "deleteBackward" });
+                await Task.Delay(200, ct);
+                if ((await Js($"window.__bs.hasPlaceholder({n})"))?.GetValue<bool>() == true)
+                    _log($"이미지 {n}: 안내 줄이 남았어요 — 직접 지워 주세요");
+            }
 
             done++;
             _log($"이미지 {n}/{_post.ImagePaths.Count} ✓");
