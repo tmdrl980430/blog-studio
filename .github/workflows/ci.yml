@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Windows 빌드 · 테스트
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore BlogStudio.sln
+
+      - name: Build
+        run: dotnet build BlogStudio.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test src/BlogStudio.Core.Tests/BlogStudio.Core.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
+
+      # 테스트용 실행 파일: Actions 실행 화면의 Artifacts에서 내려받아 바로 실행할 수 있다 (.NET 8 데스크톱 런타임 필요)
+      - name: Publish (win-x64)
+        run: dotnet publish apps/desktop/BlogStudio.Windows/BlogStudio.Windows.csproj -c Release -r win-x64 --self-contained false -o publish/win-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlogStudio-win-x64
+          path: publish/win-x64
+          retention-days: 14

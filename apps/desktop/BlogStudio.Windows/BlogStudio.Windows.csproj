@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AssemblyName>BlogStudio</AssemblyName>
+    <RootNamespace>BlogStudio.Windows</RootNamespace>
+    <Product>Blog Studio</Product>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2210.55" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\BlogStudio.Presentation\BlogStudio.Presentation.csproj" />
+  </ItemGroup>
+
+  <!-- 테마 팩·공통 프롬프트를 실행 폴더의 shared\ 로 복사 -->
+  <ItemGroup>
+    <Content Include="..\..\..\shared\**\*" LinkBase="shared" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
