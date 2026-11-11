@@ -24,3 +24,19 @@ public interface IClaudeCodeSetup
     /// <summary>claude를 새 터미널 창에서 실행해 사용자가 Claude Pro 계정으로 로그인하게 한다.</summary>
     void OpenLoginTerminal();
 }
+
+public sealed record AppUpdate(string Version);
+
+/// <summary>앱 자동 업데이트 (Windows·Mac 모두 Velopack + GitHub Releases).</summary>
+public interface IUpdateService
+{
+    /// <summary>설치 프로그램으로 설치된 앱인지 (zip으로 실행하거나 개발 중이면 false → 업데이트 확인 안 함).</summary>
+    bool IsInstalled { get; }
+
+    Task<AppUpdate?> CheckAsync(CancellationToken ct = default);
+
+    Task DownloadAsync(Action<int> progress, CancellationToken ct = default);
+
+    /// <summary>받아 둔 업데이트를 적용하고 앱을 다시 시작한다 (돌아오지 않음).</summary>
+    void ApplyAndRestart();
+}

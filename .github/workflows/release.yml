@@ -1,0 +1,58 @@
+name: release
+
+# main에 데스크톱 앱 관련 변경이 merge되면 새 버전을 GitHub Releases에 올린다.
+# 설치된 앱은 시작할 때 이 Releases를 확인해 "재시작하여 업데이트" 알림을 띄운다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "src/**"
+      - "shared/**"
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  VPK_VERSION: "1.2.161"   # Velopack NuGet 버전과 같게 유지
+
+jobs:
+  windows:
+    name: Windows 릴리스
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: 버전 정하기 (1.0.<실행 번호>)
+        id: ver
+        shell: bash
+        run: echo "version=1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: 테스트
+        run: dotnet test src/BlogStudio.Core.Tests/BlogStudio.Core.Tests.csproj -c Release
+
+      - name: Publish
+        run: >-
+          dotnet publish apps/desktop/BlogStudio.Windows/BlogStudio.Windows.csproj -c Release -r win-x64
+          --self-contained true -p:Version=${{ steps.ver.outputs.version }} -o publish
+
+      - name: Velopack 패키징·업로드
+        shell: bash
+        run: |
+          dotnet tool install -g vpk --version "$VPK_VERSION"
+          REPO="https://github.com/${{ github.repository }}"
+          # 이전 릴리스를 받아 두면 바뀐 부분만 담은 delta 패키지가 함께 만들어진다 (첫 릴리스면 없음)
+          vpk download github --repoUrl "$REPO" --token "${{ secrets.GITHUB_TOKEN }}" || true
+          vpk pack -u BlogStudio -v "${{ steps.ver.outputs.version }}" -p publish -e BlogStudio.exe --packTitle "Blog Studio"
+          vpk upload github --repoUrl "$REPO" --token "${{ secrets.GITHUB_TOKEN }}" --publish \
+            --releaseName "Blog Studio ${{ steps.ver.outputs.version }}" --tag "v${{ steps.ver.outputs.version }}"

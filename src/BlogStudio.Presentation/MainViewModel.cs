@@ -26,6 +26,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IBrowserLauncher _browser;
     private readonly Func<DateOnly> _today;
     private readonly IClaudeCodeSetup? _setup;
+    private readonly IUpdateService? _updates;
 
     private ThemePack? _theme;
     private PromptBuilder? _prompts;
@@ -36,9 +37,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel(ThemeRepository themes, LocalStore store, IAiProvider provider,
         IClipboardService clipboard, IBrowserLauncher browser, Func<DateOnly>? today = null,
-        IClaudeCodeSetup? setup = null)
+        IClaudeCodeSetup? setup = null, IUpdateService? updates = null)
     {
         _setup = setup;
+        _updates = updates;
         _themes = themes;
         _store = store;
         _provider = provider;
@@ -80,6 +82,16 @@ public sealed partial class MainViewModel : ObservableObject
     public bool IsRenderedMode => PreviewMode == PreviewMode.Rendered;
     public bool IsMarkdownMode => PreviewMode == PreviewMode.Markdown;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
+    private bool _isUpdateAvailable;
+
+    [ObservableProperty] private string _updateBannerText = "";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUpdateCommand))]
+    private bool _isUpdating;
+
     /// <summary>앱 안 미리보기(WebView2)를 쓸 수 없을 때 안내 문구. 비어 있으면 정상.</summary>
     [ObservableProperty] private string _previewUnavailableMessage = "";
 
@@ -116,6 +128,49 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         await CheckProviderAsync();
+        await CheckForUpdatesAsync();
+    }
+
+    /// <summary>시작할 때 한 번 새 버전을 확인한다. 네트워크 오류는 조용히 넘긴다.</summary>
+    private async Task CheckForUpdatesAsync()
+    {
+        if (_updates is null || !_updates.IsInstalled) return;
+        try
+        {
+            if (await _updates.CheckAsync() is { } update)
+            {
+                UpdateBannerText = $"새 버전 {update.Version}이 준비됐어요";
+                IsUpdateAvailable = true;
+            }
+        }
+        catch (Exception)
+        {
+            // 오프라인 등 — 다음 실행 때 다시 확인
+        }
+    }
+
+    private bool CanApplyUpdate() => IsUpdateAvailable && !IsUpdating;
+
+    [RelayCommand(CanExecute = nameof(CanApplyUpdate))]
+    private async Task ApplyUpdateAsync()
+    {
+        if (_updates is null) return;
+        IsUpdating = true;
+        try
+        {
+            await _updates.DownloadAsync(p => UpdateBannerText = $"업데이트 받는 중… {p}%");
+            UpdateBannerText = "재시작하는 중…";
+            _updates.ApplyAndRestart();
+        }
+        catch (Exception ex)
+        {
+            UpdateBannerText = "업데이트 실패 — 다음 실행 때 다시 시도해요";
+            StatusText = "업데이트 실패: " + ex.Message;
+        }
+        finally
+        {
+            IsUpdating = false;
+        }
     }
 
     [RelayCommand]

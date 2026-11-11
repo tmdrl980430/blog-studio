@@ -12,7 +12,13 @@ WPF (.NET 8) 데스크톱 앱. 오늘의 주제로 **내 PC의 Claude Code(Claud
 
 코드를 직접 빌드할 때만 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)가 필요합니다.
 
-## 실행
+## 설치와 자동 업데이트
+
+[Releases](https://github.com/tmdrl980430/blog-studio/releases/latest)에서 `BlogStudio-win-Setup.exe`를 받아 한 번 설치합니다.
+그다음부터는 main에 merge될 때마다 새 버전이 Releases에 올라가고(`.github/workflows/release.yml`),
+앱을 켜면 위쪽에 "새 버전 … · 재시작하여 업데이트"가 나타납니다. zip으로 실행한 앱은 업데이트를 확인하지 않습니다.
+
+## 실행 (개발용)
 
 ```
 dotnet run --project apps/desktop/BlogStudio.Windows

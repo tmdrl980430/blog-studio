@@ -141,3 +141,59 @@ public class ClaudeSetupFlowTests
         Assert.False(vm.InstallClaudeCodeCommand.CanExecute(null));
     }
 }
+
+
+public class UpdateFlowTests
+{
+    private sealed class FakeUpdates : IUpdateService
+    {
+        public bool Applied;
+        public bool IsInstalled { get; init; } = true;
+        public AppUpdate? Next { get; init; } = new("1.0.7");
+        public Task<AppUpdate?> CheckAsync(CancellationToken ct = default) => Task.FromResult(Next);
+        public Task DownloadAsync(Action<int> progress, CancellationToken ct = default) { progress(100); return Task.CompletedTask; }
+        public void ApplyAndRestart() => Applied = true;
+    }
+
+    private sealed class Ready : IAiProvider, IClipboardService, IBrowserLauncher
+    {
+        public string Name => "Fake";
+        public Task<string?> CheckAsync(CancellationToken ct = default) => Task.FromResult<string?>("1.0");
+        public Task<AiResult> GenerateAsync(AiRequest r, CancellationToken ct = default) => throw new NotSupportedException();
+        public void SetHtml(string html, string plainText) { }
+        public void SetText(string text) { }
+        public void Open(string url) { }
+    }
+
+    private static MainViewModel Vm(IUpdateService updates)
+    {
+        var r = new Ready();
+        return new MainViewModel(Fixtures.Themes(), new LocalStore(Directory.CreateTempSubdirectory("bs-up-").FullName),
+            r, r, r, () => new DateOnly(2026, 11, 11), updates: updates);
+    }
+
+    [Fact]
+    public async Task Shows_banner_and_applies_update()
+    {
+        var updates = new FakeUpdates();
+        var vm = Vm(updates);
+        await vm.InitializeCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsUpdateAvailable);
+        Assert.Contains("1.0.7", vm.UpdateBannerText);
+        await vm.ApplyUpdateCommand.ExecuteAsync(null);
+        Assert.True(updates.Applied);
+    }
+
+    [Fact]
+    public async Task No_banner_when_not_installed_or_up_to_date()
+    {
+        var zipRun = Vm(new FakeUpdates { IsInstalled = false });
+        await zipRun.InitializeCommand.ExecuteAsync(null);
+        Assert.False(zipRun.IsUpdateAvailable);
+
+        var latest = Vm(new FakeUpdates { Next = null });
+        await latest.InitializeCommand.ExecuteAsync(null);
+        Assert.False(latest.ApplyUpdateCommand.CanExecute(null));
+    }
+}

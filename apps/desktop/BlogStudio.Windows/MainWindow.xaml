@@ -22,6 +22,16 @@
                 <TextBlock x:Name="VersionText" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" />
                 <Button DockPanel.Dock="Right" Content="설정" Style="{StaticResource SecondaryButton}"
                         Click="OpenSettings_Click" VerticalAlignment="Center" />
+                <!-- 새 버전 알림 (GitHub Releases) -->
+                <Border DockPanel.Dock="Right" Background="{StaticResource AccentSoft}" CornerRadius="8" Padding="12,4,4,4"
+                        Margin="0,0,10,0" VerticalAlignment="Center"
+                        Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding UpdateBannerText}" Foreground="#1E3FB0" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <Button Content="재시작하여 업데이트" Style="{StaticResource PrimaryButton}" MinHeight="30"
+                                Command="{Binding ApplyUpdateCommand}" />
+                    </StackPanel>
+                </Border>
             </DockPanel>
         </Border>
 

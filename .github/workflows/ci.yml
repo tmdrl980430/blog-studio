@@ -40,3 +40,12 @@ jobs:
           name: BlogStudio-win-x64
           path: publish/win-x64
           retention-days: 14
+
+      # 릴리스(main)와 같은 방식으로 설치 프로그램이 만들어지는지 PR에서 미리 확인 (업로드는 안 함)
+      - name: Velopack 패키징 시험
+        shell: bash
+        run: |
+          dotnet publish apps/desktop/BlogStudio.Windows/BlogStudio.Windows.csproj -c Release -r win-x64 --self-contained true -p:Version=0.0.1 -o publish/vpk-src
+          dotnet tool install -g vpk --version 1.2.161
+          vpk pack -u BlogStudio -v 0.0.1 -p publish/vpk-src -e BlogStudio.exe --packTitle "Blog Studio" -o publish/releases
+          ls publish/releases
