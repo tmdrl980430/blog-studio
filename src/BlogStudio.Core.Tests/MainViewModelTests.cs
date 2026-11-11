@@ -59,6 +59,58 @@ public class MainViewModelTests
         Assert.Contains("네이버 블로그 ID", vm.StatusText);
     }
 
+    private sealed class FakePicker : IFilePicker
+    {
+        public List<string> Next = new();
+        public IReadOnlyList<string> PickImages() => Next;
+    }
+
+    [Fact]
+    public async Task Life_category_writes_memo_review_with_my_photos_without_advancing_ideas()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-life-").FullName);
+        var provider = new FakeProvider();
+        var picker = new FakePicker();
+        var vm = new MainViewModel(Fixtures.Themes(), store, provider, new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11), files: picker);
+        await vm.InitializeCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { "tech", "food", "travel", "fashion", "product" }, vm.Categories.Select(c => c.Key));
+        Assert.False(vm.IsMemoCategory);
+
+        vm.SelectedCategory = vm.Categories.Single(c => c.Key == "food");
+        Assert.True(vm.IsMemoCategory);
+        var idea = vm.TopicTitle;
+        Assert.Contains("가게 이름", vm.MemoHint);
+
+        var photo = Path.Combine(Directory.CreateTempSubdirectory("bs-life-p-").FullName, "ramen.jpg");
+        File.WriteAllBytes(photo, new byte[] { 1, 2, 3 });
+        picker.Next = new() { photo, photo };
+        vm.AddPhotosCommand.Execute(null);
+        Assert.Single(vm.MemoPhotos);                                           // 같은 파일은 한 번만
+
+        vm.MemoName = "연남동 라멘집";
+        vm.MemoText = "돈코츠 맛있음";
+        await vm.GenerateCommand.ExecuteAsync(null);
+
+        Assert.Contains("[내 메모", provider.Last!.User);
+        Assert.Contains("[사진 1: 설명]", provider.Last.User);
+        Assert.Contains(vm.Images, i => i.FullPath.EndsWith("_my.jpg"));          // 자리 표시가 없어도 내 사진은 들어감
+        Assert.Equal(0, store.NextIndex("food"));                               // 후기는 아이디어 순서를 넘기지 않음
+        Assert.Equal(idea, vm.TopicTitle);
+        Assert.Equal("", vm.MemoText);
+        Assert.Empty(vm.MemoPhotos);
+        Assert.Equal("food", store.LoadState().History.Last().TrackKey);
+
+        await vm.GenerateCommand.ExecuteAsync(null);                            // 메모 없이 → 정보 글
+        Assert.Contains("[오늘의 주제] " + idea, provider.Last.User);
+        Assert.Equal(1, store.NextIndex("food"));
+
+        vm.SelectedCategory = vm.Categories[0];
+        Assert.False(vm.IsMemoCategory);
+        Assert.Contains("·", vm.TrackName);
+    }
+
     private sealed class FakeBrowser : IBrowserLauncher
     {
         public string? Url;

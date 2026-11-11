@@ -41,7 +41,7 @@ public partial class App : Application
             var viewModel = new MainViewModel(themes, store, provider, clipboard, new ShellBrowserLauncher(),
                 setup: new WindowsClaudeCodeSetup(), updates: new VelopackUpdateService(),
                 imageServices: new BlogStudio.Core.Images.ImageServices(store),
-                autoFill: new AutoFill.WpfAutoFillLauncher(clipboard));
+                autoFill: new AutoFill.WpfAutoFillLauncher(clipboard), files: new WpfFilePicker());
 
             var window = new MainWindow(viewModel, store);
             MainWindow = window;
