@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace BlogStudio.Presentation;
 
-/// <summary>설정 창: 블로그 주소, 작성자 이름, Claude 모델.</summary>
+/// <summary>설정 창: 블로그 주소, 작성자 이름, Claude 모델, 이미지(썸네일·그림·사진·AI 이미지).</summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly LocalStore _store;
@@ -18,9 +18,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         _naverBlogId = _settings.NaverBlogId;
         _tistoryName = _settings.TistoryName;
         _claudeModel = string.IsNullOrWhiteSpace(_settings.ClaudeModel) ? "sonnet" : _settings.ClaudeModel;
+        _blogDisplayName = _settings.BlogDisplayName;
+        _thumbnailEnabled = _settings.ThumbnailEnabled;
+        _diagramsEnabled = _settings.DiagramsEnabled;
+        _aiImagesEnabled = _settings.AiImagesEnabled;
+        _openAiImageQuality = string.IsNullOrWhiteSpace(_settings.OpenAiImageQuality) ? "low" : _settings.OpenAiImageQuality;
+        PexelsKeyStatus = Mask(store.Reveal(_settings.PexelsApiKey));
+        OpenAiKeyStatus = Mask(store.Reveal(_settings.OpenAiApiKey));
     }
 
     public IReadOnlyList<string> ModelOptions { get; } = new[] { "sonnet", "opus", "haiku" };
+    public IReadOnlyList<string> QualityOptions { get; } = new[] { "low", "medium", "high" };
 
     public string DataFolder => _store.Root;
 
@@ -28,9 +36,41 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _naverBlogId;
     [ObservableProperty] private string _tistoryName;
     [ObservableProperty] private string _claudeModel;
+    [ObservableProperty] private string _blogDisplayName;
+    [ObservableProperty] private bool _thumbnailEnabled;
+    [ObservableProperty] private bool _diagramsEnabled;
+    [ObservableProperty] private bool _aiImagesEnabled;
+    [ObservableProperty] private string _openAiImageQuality;
+
+    /// <summary>새로 입력한 키 (비워 두면 기존 키 유지).</summary>
+    [ObservableProperty] private string _pexelsKeyInput = "";
+    [ObservableProperty] private string _openAiKeyInput = "";
+
+    public string PexelsKeyStatus { get; private set; }
+    public string OpenAiKeyStatus { get; private set; }
+
+    internal static string Mask(string key) => key.Length == 0 ? "저장된 키 없음" : $"저장됨 ••••{key[^Math.Min(4, key.Length)..]}";
 
     /// <summary>저장 후 창을 닫으라는 신호.</summary>
     public event EventHandler? Saved;
+
+    [RelayCommand]
+    private void ClearPexelsKey()
+    {
+        _settings.PexelsApiKey = "";
+        PexelsKeyInput = "";
+        PexelsKeyStatus = Mask("");
+        OnPropertyChanged(nameof(PexelsKeyStatus));
+    }
+
+    [RelayCommand]
+    private void ClearOpenAiKey()
+    {
+        _settings.OpenAiApiKey = "";
+        OpenAiKeyInput = "";
+        OpenAiKeyStatus = Mask("");
+        OnPropertyChanged(nameof(OpenAiKeyStatus));
+    }
 
     [RelayCommand]
     private void Save()
@@ -39,6 +79,13 @@ public sealed partial class SettingsViewModel : ObservableObject
         _settings.NaverBlogId = NaverBlogId.Trim();
         _settings.TistoryName = TistoryName.Trim();
         _settings.ClaudeModel = ClaudeModel;
+        _settings.BlogDisplayName = BlogDisplayName.Trim();
+        _settings.ThumbnailEnabled = ThumbnailEnabled;
+        _settings.DiagramsEnabled = DiagramsEnabled;
+        _settings.AiImagesEnabled = AiImagesEnabled;
+        _settings.OpenAiImageQuality = OpenAiImageQuality;
+        if (!string.IsNullOrWhiteSpace(PexelsKeyInput)) _settings.PexelsApiKey = _store.Conceal(PexelsKeyInput.Trim());
+        if (!string.IsNullOrWhiteSpace(OpenAiKeyInput)) _settings.OpenAiApiKey = _store.Conceal(OpenAiKeyInput.Trim());
         _store.SaveSettings(_settings);
         Saved?.Invoke(this, EventArgs.Empty);
     }

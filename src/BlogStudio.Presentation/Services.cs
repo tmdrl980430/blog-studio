@@ -7,6 +7,9 @@ public interface IClipboardService
     void SetHtml(string html, string plainText);
 
     void SetText(string text);
+
+    /// <summary>이미지 파일을 클립보드에 (블로그 에디터에 바로 붙여넣기 → 업로드).</summary>
+    void SetImage(string path) { }
 }
 
 /// <summary>기본 브라우저로 주소 열기.</summary>

@@ -35,10 +35,11 @@ public partial class App : Application
         try
         {
             var themes = new ThemeRepository(ThemeRepository.LocateSharedRoot());
-            var store = new LocalStore();
+            var store = new LocalStore(protector: new DpapiSecretProtector());
             var provider = new ClaudeCodeProvider(new SystemProcessRunner());
             var viewModel = new MainViewModel(themes, store, provider, new WpfClipboardService(), new ShellBrowserLauncher(),
-                setup: new WindowsClaudeCodeSetup(), updates: new VelopackUpdateService());
+                setup: new WindowsClaudeCodeSetup(), updates: new VelopackUpdateService(),
+                imageServices: new BlogStudio.Core.Images.ImageServices(store));
 
             var window = new MainWindow(viewModel, store);
             MainWindow = window;

@@ -26,8 +26,27 @@ public sealed class ThemePack
     /// <summary>mon~sun → 트랙 키. "rest"는 쉬는 날.</summary>
     public Dictionary<string, string> DefaultSchedule { get; set; } = new();
 
+    public ThemeDesign Design { get; set; } = new();
+
     [YamlIgnore]
     public Dictionary<string, Track> Curriculum { get; set; } = new();
+
+    /// <summary>트랙 색 → 테마 포인트 색 → 기본 파랑.</summary>
+    public string ColorFor(string? trackKey) =>
+        trackKey is not null && Design.TrackColors.TryGetValue(trackKey, out var c) ? c
+        : string.IsNullOrWhiteSpace(Design.Accent) ? "#2F5BEA" : Design.Accent;
+}
+
+/// <summary>theme.yaml의 design 항목 (shared/guides 참고).</summary>
+public sealed class ThemeDesign
+{
+    public string Accent { get; set; } = "";
+    public string Layout { get; set; } = "";
+    public List<string> Categories { get; set; } = new();
+    public string TistorySkin { get; set; } = "";
+    public string Thumbnail { get; set; } = "typo_card";
+    public Dictionary<string, string> TrackColors { get; set; } = new();
+    public List<string> Guides { get; set; } = new();
 }
 
 /// <summary>shared/themes/&lt;slug&gt;/curriculum/&lt;key&gt;.yaml 한 개.</summary>
