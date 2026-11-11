@@ -37,9 +37,11 @@ public partial class App : Application
             var themes = new ThemeRepository(ThemeRepository.LocateSharedRoot());
             var store = new LocalStore(protector: new DpapiSecretProtector());
             var provider = new ClaudeCodeProvider(new SystemProcessRunner());
-            var viewModel = new MainViewModel(themes, store, provider, new WpfClipboardService(), new ShellBrowserLauncher(),
+            var clipboard = new WpfClipboardService();
+            var viewModel = new MainViewModel(themes, store, provider, clipboard, new ShellBrowserLauncher(),
                 setup: new WindowsClaudeCodeSetup(), updates: new VelopackUpdateService(),
-                imageServices: new BlogStudio.Core.Images.ImageServices(store));
+                imageServices: new BlogStudio.Core.Images.ImageServices(store),
+                autoFill: new AutoFill.WpfAutoFillLauncher(clipboard));
 
             var window = new MainWindow(viewModel, store);
             MainWindow = window;

@@ -26,6 +26,39 @@ public class MainViewModelTests
         public void SetText(string text) => Text = text;
     }
 
+    private sealed class FakeAutoFill : IAutoFillLauncher
+    {
+        public AutoFillPayload? Last;
+        public void Open(AutoFillPayload payload) => Last = payload;
+    }
+
+    [Fact]
+    public async Task Auto_fill_opens_write_page_with_post_and_images_in_order()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-af-").FullName);
+        store.SaveSettings(new AppSettings { TistoryName = "seunggi" });
+        var autoFill = new FakeAutoFill();
+        var vm = new MainViewModel(Fixtures.Themes(), store, new FakeProvider(), new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11), autoFill: autoFill);
+        await vm.InitializeCommand.ExecuteAsync(null);
+        Assert.False(vm.AutoFillTistoryCommand.CanExecute(null));
+
+        await vm.GenerateCommand.ExecuteAsync(null);
+        vm.AutoFillTistoryCommand.Execute(null);
+
+        var p = autoFill.Last!;
+        Assert.Equal(BlogPlatform.Tistory, p.Platform);
+        Assert.Equal("https://seunggi.tistory.com/manage/newpost", p.WriteUrl);
+        Assert.Equal("BFS로 미로 최단 거리 구하기", p.Title);
+        Assert.Contains("[이미지 1:", p.BodyHtml);
+        Assert.Equal(vm.Images.Select(i => i.FullPath), p.ImagePaths);
+
+        autoFill.Last = null;
+        vm.AutoFillNaverCommand.Execute(null);                          // 네이버 ID 없음 → 안내만
+        Assert.Null(autoFill.Last);
+        Assert.Contains("네이버 블로그 ID", vm.StatusText);
+    }
+
     private sealed class FakeBrowser : IBrowserLauncher
     {
         public string? Url;
