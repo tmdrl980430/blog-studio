@@ -28,6 +28,12 @@ public interface IAutoFillLauncher
     void Open(AutoFillPayload payload);
 }
 
+/// <summary>사진 파일 고르기 (플랫폼별 파일 대화상자).</summary>
+public interface IFilePicker
+{
+    IReadOnlyList<string> PickImages();
+}
+
 /// <summary>기본 브라우저로 주소 열기.</summary>
 public interface IBrowserLauncher
 {

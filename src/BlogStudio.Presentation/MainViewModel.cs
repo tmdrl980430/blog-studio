@@ -23,6 +23,14 @@ public sealed record ImageItem(int Number, string KindLabel, string Caption, str
     public string Title => $"이미지 {Number} · {KindLabel}";
 }
 
+/// <summary>글 종류: 기술 공부(요일별 커리큘럼) 또는 일상·리뷰 트랙(메모 후기 / 정보 글).</summary>
+public sealed record CategoryItem(string Key, string Label, bool IsMemoCategory);
+
+public sealed record MemoPhoto(string FullPath)
+{
+    public string Name => Path.GetFileName(FullPath);
+}
+
 /// <summary>메인 화면: 오늘의 주제 → 생성 → 미리보기 → 복사. WPF·Avalonia가 같이 쓴다.</summary>
 public sealed partial class MainViewModel : ObservableObject
 {
@@ -39,6 +47,11 @@ public sealed partial class MainViewModel : ObservableObject
     private string _previewBodyHtml = "";
 
     private ThemePack? _theme;
+    private ThemePack? _life;
+    private readonly IFilePicker? _files;
+    public const string TechCategory = "tech";
+    public const string LifeTheme = "life";
+    public const int MaxMemoPhotos = 10;
     private PromptBuilder? _prompts;
     private AppSettings _settings = new();
     private PlannedTopic? _plan;
@@ -48,8 +61,9 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(ThemeRepository themes, LocalStore store, IAiProvider provider,
         IClipboardService clipboard, IBrowserLauncher browser, Func<DateOnly>? today = null,
         IClaudeCodeSetup? setup = null, IUpdateService? updates = null, IImageServices? imageServices = null,
-        IAutoFillLauncher? autoFill = null)
+        IAutoFillLauncher? autoFill = null, IFilePicker? files = null)
     {
+        _files = files;
         _autoFill = autoFill;
         _imageServices = imageServices;
         _setup = setup;
@@ -68,6 +82,42 @@ public sealed partial class MainViewModel : ObservableObject
     public bool CanAutoFill => _autoFill is not null;
 
     public ObservableCollection<UpcomingTopicItem> UpcomingTopics { get; } = new();
+
+    public ObservableCollection<CategoryItem> Categories { get; } = new();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsMemoCategory))]
+    private CategoryItem? _selectedCategory;
+
+    partial void OnSelectedCategoryChanged(CategoryItem? value) => RefreshPlan();
+
+    /// <summary>메모·사진 입력칸을 보여 줄지 (일상·리뷰 카테고리).</summary>
+    public bool IsMemoCategory => SelectedCategory?.IsMemoCategory == true;
+
+    [ObservableProperty] private string _memoName = "";
+    [ObservableProperty] private string _memoText = "";
+    [ObservableProperty] private string _memoHint = "";
+
+    public ObservableCollection<MemoPhoto> MemoPhotos { get; } = new();
+
+    private ThemePack? ActiveTheme => IsMemoCategory ? _life : _theme;
+
+    [RelayCommand]
+    private void AddPhotos()
+    {
+        if (_files is null) return;
+        foreach (var path in _files.PickImages())
+        {
+            if (MemoPhotos.Count >= MaxMemoPhotos) { StatusText = $"사진은 {MaxMemoPhotos}장까지 넣을 수 있어요"; break; }
+            if (MemoPhotos.All(p => p.FullPath != path)) MemoPhotos.Add(new MemoPhoto(path));
+        }
+    }
+
+    [RelayCommand]
+    private void RemovePhoto(MemoPhoto? photo)
+    {
+        if (photo is not null) MemoPhotos.Remove(photo);
+    }
 
     public ObservableCollection<ImageItem> Images { get; } = new();
 
@@ -137,7 +187,7 @@ public sealed partial class MainViewModel : ObservableObject
         _theme = _themes.Load(_settings.ThemeSlug);
         _prompts = new PromptBuilder(_themes.LoadBasePrompt());
         ThemeName = _theme.Name;
-        RefreshPlan();
+        LoadCategories();
 
         if (_store.LoadLatest() is { } latest)
         {
@@ -262,10 +312,47 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshPlan();
     }
 
+    private void LoadCategories()
+    {
+        _life = _themes.ListThemeSlugs().Contains(LifeTheme) ? _themes.Load(LifeTheme) : null;
+        var keep = SelectedCategory?.Key;
+        Categories.Clear();
+        Categories.Add(new CategoryItem(TechCategory, "기술 공부 · 오늘의 주제", false));
+        if (_life is not null)
+            foreach (var key in _life.Tracks.Where(_life.Curriculum.ContainsKey))
+                Categories.Add(new CategoryItem(key, _life.Curriculum[key].Name, true));
+        var next = Categories.FirstOrDefault(c => c.Key == keep) ?? Categories[0];
+        if (ReferenceEquals(next, SelectedCategory) || next == SelectedCategory) RefreshPlan();
+        else SelectedCategory = next;
+    }
+
+    /// <summary>일상·리뷰 카테고리: 메모가 있으면 후기, 없으면 트랙의 주제 아이디어를 순서대로.</summary>
+    private void RefreshMemoPlan(DateOnly today)
+    {
+        var track = _life!.Curriculum[SelectedCategory!.Key];
+        var index = _store.NextIndex(track.Key);
+        var topic = index < track.Topics.Count ? track.Topics[index] : null;
+        _plan = new PlannedTopic(today, track, topic, index);
+        TrackName = $"{track.Name} · 메모를 쓰면 후기, 비우면 정보 글";
+        TopicTitle = topic ?? "주제 아이디어를 다 썼어요 — 비워 두면 Claude가 골라요";
+        MemoHint = string.IsNullOrWhiteSpace(track.MemoHint) ? "직접 겪은 내용을 자유롭게" : track.MemoHint;
+
+        UpcomingTopics.Clear();
+        foreach (var next in track.Topics.Skip(index + 1).Take(3))
+            UpcomingTopics.Add(new UpcomingTopicItem($"{track.Name} 정보 글 — {next}"));
+        GenerateCommand.NotifyCanExecuteChanged();
+    }
+
     private void RefreshPlan()
     {
         if (_theme is null) return;
         var today = _today();
+        if (IsMemoCategory && _life is not null)
+        {
+            DateLabel = $"{today:M월 d일} {DayName(today)}요일";
+            RefreshMemoPlan(today);
+            return;
+        }
         var planner = new TopicPlanner(_theme, _settings.Schedule);
         DateLabel = $"{today:M월 d일} {DayName(today)}요일";
 
@@ -294,24 +381,37 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanGenerate), IncludeCancelCommand = true)]
     private async Task GenerateAsync(CancellationToken ct)
     {
-        if (_theme is null || _prompts is null || _plan is null) return;
+        var theme = ActiveTheme;
+        if (theme is null || _prompts is null || _plan is null) return;
+        var inputs = IsMemoCategory ? new PostInputs(MemoName, MemoText, MemoPhotos.Count) : null;
+        var fromMemo = inputs?.HasMemo == true;
+        var photos = MemoPhotos.Select(p => p.FullPath).Where(File.Exists).ToList();
         IsGenerating = true;
         StatusText = $"{_provider.Name}로 작성 중… (1~3분)";
         try
         {
             var history = _store.LoadState().History;
-            var prompt = _prompts.Build(_theme, _plan.Track, _plan.Topic, history, _settings.Author, ExtraRequest);
+            var prompt = _prompts.Build(theme, _plan.Track, _plan.Topic, history, _settings.Author, ExtraRequest, inputs);
             var model = string.IsNullOrWhiteSpace(_settings.ClaudeModel) ? null : _settings.ClaudeModel;
-            var result = await _provider.GenerateAsync(new AiRequest(prompt.System, prompt.User, _theme.ModelTier, model), ct);
+            var result = await _provider.GenerateAsync(new AiRequest(prompt.System, prompt.User, theme.ModelTier, model), ct);
 
-            var post = PostParser.Parse(result.Text, _plan.Topic ?? "(자동 선정)", _plan.Track.Key, _today());
-            if (_plan.Topic is null) post = post with { Topic = post.Title };
+            var topicLabel = fromMemo
+                ? (string.IsNullOrWhiteSpace(MemoName) ? "메모 후기" : MemoName.Trim())
+                : _plan.Topic ?? "(자동 선정)";
+            var post = PostParser.Parse(result.Text, topicLabel, _plan.Track.Key, _today());
+            if (!fromMemo && _plan.Topic is null) post = post with { Topic = post.Title };
 
             StatusText = "이미지 만드는 중… (썸네일·그림·사진)";
             var folder = _store.CreatePostFolder(post);
-            var images = await ImagePipeline.RunAsync(post, folder, BuildImageOptions(_plan), ct);
+            var images = await ImagePipeline.RunAsync(post, folder, BuildImageOptions(_plan, theme, fromMemo, photos), ct);
             post = post with { BodyMarkdown = images.BodyMarkdown };
-            _store.SavePost(post, _plan.Topic is not null, folder, images.Images);
+            _store.SavePost(post, !fromMemo && _plan.Topic is not null, folder, images.Images);
+            if (IsMemoCategory)
+            {
+                MemoName = "";
+                MemoText = "";
+                MemoPhotos.Clear();
+            }
 
             ShowPost(new SavedPost(post, folder, images.Images));
             ExtraRequest = "";
@@ -334,11 +434,15 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private ImagePipelineOptions BuildImageOptions(PlannedTopic plan) => new()
+    private ImagePipelineOptions BuildImageOptions(PlannedTopic plan, ThemePack theme, bool fromMemo,
+        IReadOnlyList<string> photos) => new()
     {
         Thumbnail = _settings.ThumbnailEnabled,
-        ThumbnailLabel = $"{plan.Track.Name} · {plan.Index + 1}",
-        ThumbnailColor = _theme?.ColorFor(plan.Track.Key) ?? "#2F5BEA",
+        ThumbnailLabel = fromMemo ? $"{plan.Track.Name} · 후기"
+            : IsMemoCategory ? plan.Track.Name
+            : $"{plan.Track.Name} · {plan.Index + 1}",
+        ThumbnailColor = theme.ColorFor(plan.Track.Key),
+        UserPhotos = photos,
         BlogName = string.IsNullOrWhiteSpace(_settings.BlogDisplayName) ? _settings.Author : _settings.BlogDisplayName,
         Diagrams = _settings.DiagramsEnabled,
         Photos = _imageServices?.Photos(_settings),

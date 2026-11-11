@@ -51,7 +51,21 @@ public class ThemeRepositoryTests
     public void Lists_all_theme_packs()
     {
         var slugs = Fixtures.Themes().ListThemeSlugs();
-        Assert.Equal(new[] { "fashion", "review", "tech" }, slugs);
+        Assert.Equal(new[] { "life", "tech" }, slugs);
+    }
+
+    [Fact]
+    public void Life_theme_has_four_categories_with_ideas_and_memo_hints()
+    {
+        var life = Fixtures.Themes().Load("life");
+        Assert.Equal(new[] { "food", "travel", "fashion", "product" }, life.Tracks);
+        Assert.All(life.Tracks, key =>
+        {
+            var track = life.Curriculum[key];
+            Assert.True(track.Topics.Count >= 10);
+            Assert.False(string.IsNullOrWhiteSpace(track.MemoHint));
+        });
+        Assert.Equal("#C2410C", life.ColorFor("food"));
     }
 
     [Fact]
@@ -117,6 +131,26 @@ public class PromptBuilderTests
         Assert.Contains("글20", prompt.User);
         Assert.DoesNotContain("글5 ", prompt.User + " ");      // 최근 15편만
         Assert.DoesNotContain("다른 트랙 글", prompt.User);
+    }
+
+    [Fact]
+    public void Memo_becomes_the_only_source_of_facts_and_asks_for_photo_slots()
+    {
+        var repo = Fixtures.Themes();
+        var life = repo.Load("life");
+        var prompt = new PromptBuilder(repo.LoadBasePrompt()).Build(life, life.Curriculum["food"], "아이디어 주제", [], "김승기",
+            inputs: new PostInputs("연남동 라멘집", "돈코츠 11,000원, 웨이팅 20분", 2));
+
+        Assert.Contains("[내 메모 — 이 내용만 사실로 사용]\n돈코츠 11,000원", prompt.User);
+        Assert.Contains("후기 — 연남동 라멘집", prompt.User);
+        Assert.DoesNotContain("아이디어 주제", prompt.User);
+        Assert.Contains("[사진 2: 설명]", prompt.User);
+        Assert.Contains("지어내지", prompt.System);
+
+        var info = new PromptBuilder(repo.LoadBasePrompt()).Build(life, life.Curriculum["food"], "아이디어 주제", [], "",
+            inputs: new PostInputs("", " ", 0));
+        Assert.Contains("[오늘의 주제] 아이디어 주제", info.User);
+        Assert.DoesNotContain("[내 메모", info.User);
     }
 
     [Fact]
