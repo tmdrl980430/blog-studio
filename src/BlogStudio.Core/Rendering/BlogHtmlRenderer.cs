@@ -30,7 +30,7 @@ public static class BlogHtmlRenderer
 
     internal const string ImagePlaceholder =
         "border:2px dashed #9bb2f5;background:#f5f8ff;color:#1e3fb0;padding:14px 16px;border-radius:8px;font-size:15px;margin:16px 0;";
-    private static readonly Regex MarkdownImage = new(@"^!\[(?<alt>[^\]]*)\]\((?<src>[^)\s]+)\)\s*$", RegexOptions.Multiline);
+    private static readonly Regex MarkdownImage = new(@"^!\[(?<alt>[^\]]*)\]\((?<src>[^)\s]+)\)[ \t]*$", RegexOptions.Multiline);
 
     /// <summary>
     /// 블로그 붙여넣기용: 로컬 이미지는 에디터가 올리지 못하므로 "[이미지 N: 설명] 이 자리에 붙여넣기" 표시로 바꾼다.
@@ -42,7 +42,7 @@ public static class BlogHtmlRenderer
         return MarkdownImage.Replace(markdown, m =>
         {
             n++;
-            return $"<p class=\"bs-image\">[이미지 {n}: {WebUtility.HtmlEncode(m.Groups["alt"].Value)}] — 이 자리에 앱의 이미지 {n}을 붙여넣으세요</p>";
+            return $"<p class=\"bs-image\">[이미지 {n}: {WebUtility.HtmlEncode(m.Groups["alt"].Value)}] — 이 자리에 앱의 이미지 {n}을 붙여넣으세요</p>\n";   // 빈 줄로 HTML 블록을 끝낸다
         });
     }
 
