@@ -12,6 +12,22 @@ public interface IClipboardService
     void SetImage(string path) { }
 }
 
+public enum BlogPlatform { Naver, Tistory }
+
+/// <summary>자동 채우기에 넘길 글. BodyHtml의 [이미지 N] 자리 순서 = ImagePaths 순서.</summary>
+public sealed record AutoFillPayload(
+    BlogPlatform Platform, string WriteUrl, string Title, IReadOnlyList<string> Tags,
+    string BodyHtml, IReadOnlyList<string> ImagePaths);
+
+/// <summary>
+/// 앱 안 브라우저에서 블로그 글쓰기 화면을 열고 제목·본문·이미지·태그를 채운다.
+/// 발행은 사용자가 직접 누른다 (공식 글쓰기 API가 없어서 반자동).
+/// </summary>
+public interface IAutoFillLauncher
+{
+    void Open(AutoFillPayload payload);
+}
+
 /// <summary>기본 브라우저로 주소 열기.</summary>
 public interface IBrowserLauncher
 {

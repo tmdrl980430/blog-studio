@@ -1,0 +1,57 @@
+<Window x:Class="BlogStudio.Windows.AutoFill.AutoFillWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="자동 채우기" Width="1320" Height="880" WindowStartupLocation="CenterOwner"
+        FontFamily="{StaticResource UiFont}" Background="#F6F7F9">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="300" />
+        </Grid.ColumnDefinitions>
+
+        <Border Margin="12,12,6,12" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="1">
+            <wv2:WebView2 x:Name="Web" />
+        </Border>
+
+        <DockPanel Grid.Column="1" Margin="6,12,12,12">
+            <StackPanel DockPanel.Dock="Top">
+                <TextBlock x:Name="Heading" Text="자동 채우기" FontSize="17" FontWeight="Bold" />
+                <TextBlock x:Name="PostTitle" FontSize="12" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,4,0,12" />
+
+                <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="12" Margin="0,0,0,12">
+                    <TextBlock FontSize="12" TextWrapping="Wrap" LineHeight="19">
+                        1. 왼쪽 화면에서 처음 한 번만 로그인 (다음부터는 유지)<LineBreak />
+                        2. 글쓰기 화면이 뜨면 <Bold>모두 채우기</Bold><LineBreak />
+                        3. 채우는 동안 마우스·키보드는 잠시 쉬어 주세요<LineBreak />
+                        4. 내용을 확인하고 블로그의 <Bold>발행</Bold>을 직접 누르기
+                    </TextBlock>
+                </Border>
+
+                <Button x:Name="RunAllButton" Content="모두 채우기" Style="{StaticResource PrimaryButton}" Height="42" Click="RunAll_Click" />
+                <TextBlock Text="하나씩" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Margin="0,14,0,6" />
+                <WrapPanel>
+                    <Button Content="제목" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Title_Click" />
+                    <Button Content="본문" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Body_Click" />
+                    <Button x:Name="ImagesButton" Content="이미지" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Images_Click" />
+                    <Button Content="태그" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Tags_Click" />
+                </WrapPanel>
+                <WrapPanel Margin="0,4,0,0">
+                    <Button Content="글쓰기 화면 다시 열기" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Reload_Click" />
+                    <Button x:Name="CancelButton" Content="멈추기" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Cancel_Click" IsEnabled="False" />
+                </WrapPanel>
+                <ProgressBar x:Name="Busy" IsIndeterminate="True" Height="3" Margin="0,8,0,0" Visibility="Collapsed" />
+                <TextBlock Text="진행 기록" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Margin="0,14,0,6" />
+            </StackPanel>
+            <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10">
+                <ListBox x:Name="Log" BorderThickness="0" FontSize="12" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="2,3" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Border>
+        </DockPanel>
+    </Grid>
+</Window>

@@ -47,8 +47,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public MainViewModel(ThemeRepository themes, LocalStore store, IAiProvider provider,
         IClipboardService clipboard, IBrowserLauncher browser, Func<DateOnly>? today = null,
-        IClaudeCodeSetup? setup = null, IUpdateService? updates = null, IImageServices? imageServices = null)
+        IClaudeCodeSetup? setup = null, IUpdateService? updates = null, IImageServices? imageServices = null,
+        IAutoFillLauncher? autoFill = null)
     {
+        _autoFill = autoFill;
         _imageServices = imageServices;
         _setup = setup;
         _updates = updates;
@@ -60,6 +62,10 @@ public sealed partial class MainViewModel : ObservableObject
         _today = today ?? (() => DateOnly.FromDateTime(DateTime.Now));
         PreviewHtml = BlogHtmlRenderer.EmptyPage("오늘의 주제로 글을 생성하면 여기에 미리보기가 나타나요.");
     }
+
+    private readonly IAutoFillLauncher? _autoFill;
+
+    public bool CanAutoFill => _autoFill is not null;
 
     public ObservableCollection<UpcomingTopicItem> UpcomingTopics { get; } = new();
 
@@ -113,6 +119,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPost))]
     [NotifyCanExecuteChangedFor(nameof(CopyForNaverCommand), nameof(CopyForTistoryCommand),
+        nameof(AutoFillNaverCommand), nameof(AutoFillTistoryCommand),
         nameof(CopyMarkdownCommand), nameof(CopyTitleAndTagsCommand),
         nameof(ShowRenderedCommand), nameof(ShowMarkdownCommand), nameof(OpenPreviewInBrowserCommand))]
     private bool _postReady;
@@ -434,6 +441,32 @@ public sealed partial class MainViewModel : ObservableObject
         var url = BlogTargets.TistoryWriteUrl(_settings.TistoryName);
         if (url is not null) _browser.Open(url);
         StatusText = "HTML을 복사했어요 — 티스토리 글쓰기 오른쪽 위 '기본모드'를 'HTML'로 바꾼 뒤 Ctrl+V";
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopy))]
+    private void AutoFillTistory() =>
+        OpenAutoFill(BlogPlatform.Tistory, BlogTargets.TistoryWriteUrl(_settings.TistoryName), "티스토리", "티스토리 이름");
+
+    [RelayCommand(CanExecute = nameof(CanCopy))]
+    private void AutoFillNaver() =>
+        OpenAutoFill(BlogPlatform.Naver, BlogTargets.NaverWriteUrl(_settings.NaverBlogId), "네이버", "네이버 블로그 ID");
+
+    private void OpenAutoFill(BlogPlatform platform, string? url, string blog, string settingName)
+    {
+        if (_post is null) return;
+        if (_autoFill is null)
+        {
+            StatusText = "이 기기에서는 자동 채우기를 쓸 수 없어요 — 복사 버튼을 써 주세요";
+            return;
+        }
+        if (url is null)
+        {
+            StatusText = $"설정에 {settingName}을 넣어야 자동 채우기를 쓸 수 있어요";
+            return;
+        }
+        _autoFill.Open(new AutoFillPayload(platform, url, _post.Title, _post.Tags, _bodyHtml,
+            Images.OrderBy(i => i.Number).Select(i => i.FullPath).ToList()));
+        StatusText = $"{blog} 글쓰기 창을 열었어요 — '모두 채우기' 후 내용을 확인하고 직접 발행하세요";
     }
 
     private void CopyBodyAndOpen(string? url, string blog)
