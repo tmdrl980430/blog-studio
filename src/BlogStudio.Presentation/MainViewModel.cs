@@ -70,12 +70,24 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _previewHtml = "";
     [ObservableProperty] private string _postTitle = "";
     [ObservableProperty] private string _postTags = "";
-    [ObservableProperty] private PreviewMode _previewMode = PreviewMode.Rendered;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRenderedMode), nameof(IsMarkdownMode))]
+    private PreviewMode _previewMode = PreviewMode.Rendered;
+
+    /// <summary>내용이 같아도 화면을 다시 그려 달라는 신호 (PreviewHtml 값이 같으면 PropertyChanged가 오지 않으므로).</summary>
+    public event EventHandler? PreviewRefreshRequested;
+
+    public bool IsRenderedMode => PreviewMode == PreviewMode.Rendered;
+    public bool IsMarkdownMode => PreviewMode == PreviewMode.Markdown;
+
+    /// <summary>앱 안 미리보기(WebView2)를 쓸 수 없을 때 안내 문구. 비어 있으면 정상.</summary>
+    [ObservableProperty] private string _previewUnavailableMessage = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPost))]
     [NotifyCanExecuteChangedFor(nameof(CopyForNaverCommand), nameof(CopyForTistoryCommand),
-        nameof(CopyMarkdownCommand), nameof(CopyTitleAndTagsCommand))]
+        nameof(CopyMarkdownCommand), nameof(CopyTitleAndTagsCommand),
+        nameof(ShowRenderedCommand), nameof(ShowMarkdownCommand), nameof(OpenPreviewInBrowserCommand))]
     private bool _postReady;
 
     [ObservableProperty]
@@ -258,11 +270,35 @@ public sealed partial class MainViewModel : ObservableObject
             : BlogHtmlRenderer.ToPreviewPage(_post, _bodyHtml);
     }
 
-    [RelayCommand]
-    private void ShowRendered() => PreviewMode = PreviewMode.Rendered;
+    /// <summary>같은 모드를 다시 눌러도 항상 다시 그린다 (이전엔 값이 같으면 아무 일도 없었음).</summary>
+    [RelayCommand(CanExecute = nameof(CanCopy))]
+    private void ShowRendered()
+    {
+        PreviewMode = PreviewMode.Rendered;
+        RenderPreview();
+        PreviewRefreshRequested?.Invoke(this, EventArgs.Empty);
+        StatusText = "블로그 보기";
+    }
 
-    [RelayCommand]
-    private void ShowMarkdown() => PreviewMode = PreviewMode.Markdown;
+    [RelayCommand(CanExecute = nameof(CanCopy))]
+    private void ShowMarkdown()
+    {
+        PreviewMode = PreviewMode.Markdown;
+        RenderPreview();
+        PreviewRefreshRequested?.Invoke(this, EventArgs.Empty);
+        StatusText = "마크다운 보기";
+    }
+
+    /// <summary>앱 안 미리보기가 안 될 때를 대비해 기본 브라우저로 연다.</summary>
+    [RelayCommand(CanExecute = nameof(CanCopy))]
+    private void OpenPreviewInBrowser()
+    {
+        if (_post is null) return;
+        var path = Path.Combine(_store.Root, "preview.html");
+        File.WriteAllText(path, BlogHtmlRenderer.ToPreviewPage(_post, _bodyHtml));
+        _browser.Open(new Uri(path).AbsoluteUri);
+        StatusText = "미리보기를 브라우저로 열었어요";
+    }
 
     [RelayCommand(CanExecute = nameof(CanCopy))]
     private void CopyForNaver() => CopyBodyAndOpen(BlogTargets.NaverWriteUrl(_settings.NaverBlogId), "네이버");

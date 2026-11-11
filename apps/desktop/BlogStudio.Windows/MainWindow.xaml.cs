@@ -28,13 +28,14 @@ public partial class MainWindow : Window
         };
 
         vm.PropertyChanged += OnViewModelChanged;
+        vm.PreviewRefreshRequested += (_, _) => ShowPreview();
         Loaded += async (_, _) =>
         {
             try
             {
                 await Preview.EnsureCoreWebView2Async();
                 _webReady = true;
-                Preview.NavigateToString(_vm.PreviewHtml);
+                ShowPreview();
             }
             catch (Microsoft.Web.WebView2.Core.WebView2RuntimeNotFoundException)
             {
@@ -44,11 +45,11 @@ public partial class MainWindow : Window
                     "Blog Studio", MessageBoxButton.YesNo, MessageBoxImage.Information);
                 if (answer == MessageBoxResult.Yes)
                     new Services.ShellBrowserLauncher().Open("https://go.microsoft.com/fwlink/p/?LinkId=2124703");
-                _vm.StatusText = "미리보기를 쓰려면 WebView2 런타임 설치가 필요해요";
+                ShowFallback("WebView2 런타임이 없어요. 설치 후 앱을 다시 시작하거나, 아래 버튼으로 브라우저에서 보세요.");
             }
             catch (Exception ex)
             {
-                _vm.StatusText = "미리보기(WebView2)를 시작하지 못했어요: " + ex.Message;
+                ShowFallback("WebView2를 시작하지 못했어요: " + ex.Message);
             }
             await _vm.InitializeCommand.ExecuteAsync(null);
         };
@@ -56,8 +57,30 @@ public partial class MainWindow : Window
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.PreviewHtml) && _webReady)
+        if (e.PropertyName == nameof(MainViewModel.PreviewHtml))
+            ShowPreview();
+    }
+
+    private void ShowPreview()
+    {
+        if (!_webReady) return;
+        try
+        {
             Preview.NavigateToString(_vm.PreviewHtml);
+        }
+        catch (Exception ex)
+        {
+            ShowFallback("미리보기를 그리지 못했어요: " + ex.Message);
+        }
+    }
+
+    private void ShowFallback(string message)
+    {
+        _webReady = false;
+        _vm.PreviewUnavailableMessage = message;
+        _vm.StatusText = message;
+        Preview.Visibility = Visibility.Collapsed;
+        PreviewFallback.Visibility = Visibility.Visible;
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)

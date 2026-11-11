@@ -127,15 +127,49 @@
             <DockPanel Grid.Column="2" Margin="0,20,20,20">
                 <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                     <TextBlock Text="미리보기" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <Button Content="블로그 보기" Style="{StaticResource SecondaryButton}" Command="{Binding ShowRenderedCommand}" Margin="0,0,4,0" />
-                    <Button Content="마크다운" Style="{StaticResource SecondaryButton}" Command="{Binding ShowMarkdownCommand}" Margin="0,0,16,0" />
+                    <Button Content="블로그 보기" Command="{Binding ShowRenderedCommand}" Margin="0,0,4,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRenderedMode}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                                        <Setter Property="Foreground" Value="#1E3FB0" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="마크다운" Command="{Binding ShowMarkdownCommand}" Margin="0,0,4,0">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMarkdownMode}" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource AccentSoft}" />
+                                        <Setter Property="Foreground" Value="#1E3FB0" />
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="브라우저로 열기" Style="{StaticResource SecondaryButton}" Command="{Binding OpenPreviewInBrowserCommand}" Margin="0,0,16,0" />
                     <Button Content="제목·태그 복사" Style="{StaticResource SecondaryButton}" Command="{Binding CopyTitleAndTagsCommand}" Margin="0,0,4,0" />
                     <Button Content="마크다운 복사" Style="{StaticResource SecondaryButton}" Command="{Binding CopyMarkdownCommand}" Margin="0,0,4,0" />
                     <Button Content="본문 복사 + 티스토리" Style="{StaticResource SecondaryButton}" Command="{Binding CopyForTistoryCommand}" Margin="0,0,4,0" />
                     <Button Content="본문 복사 + 네이버" Style="{StaticResource PrimaryButton}" Command="{Binding CopyForNaverCommand}" />
                 </WrapPanel>
                 <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="1">
-                    <wv2:WebView2 x:Name="Preview" />
+                    <Grid>
+                        <wv2:WebView2 x:Name="Preview" />
+                        <!-- WebView2를 쓸 수 없을 때 안내 -->
+                        <StackPanel x:Name="PreviewFallback" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420">
+                            <TextBlock Text="앱 안 미리보기를 표시할 수 없어요" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center" />
+                            <TextBlock Text="{Binding PreviewUnavailableMessage}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Muted}"
+                                       TextAlignment="Center" Margin="0,6,0,12" />
+                            <Button Content="브라우저로 열기" Style="{StaticResource PrimaryButton}" Command="{Binding OpenPreviewInBrowserCommand}" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
                 </Border>
             </DockPanel>
         </Grid>

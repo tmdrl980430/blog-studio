@@ -65,6 +65,35 @@ public class MainViewModelTests
 
         vm.ShowMarkdownCommand.Execute(null);
         Assert.Contains("## 오늘 공부할 내용", vm.PreviewHtml);
+        Assert.True(vm.IsMarkdownMode);
+    }
+
+    [Fact]
+    public async Task Blog_view_is_disabled_without_post_and_always_redraws()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-vm2-").FullName);
+        var browser = new FakeBrowser();
+        var vm = new MainViewModel(Fixtures.Themes(), store, new FakeProvider(), new FakeClipboard(), browser,
+            () => new DateOnly(2026, 11, 11));
+        var redraws = 0;
+        vm.PreviewRefreshRequested += (_, _) => redraws++;
+
+        await vm.InitializeCommand.ExecuteAsync(null);
+        Assert.False(vm.ShowRenderedCommand.CanExecute(null));      // 글이 없으면 비활성
+        Assert.False(vm.OpenPreviewInBrowserCommand.CanExecute(null));
+
+        await vm.GenerateCommand.ExecuteAsync(null);
+        Assert.True(vm.ShowRenderedCommand.CanExecute(null));
+
+        vm.ShowRenderedCommand.Execute(null);                       // 이미 블로그 보기여도 다시 그림
+        vm.ShowRenderedCommand.Execute(null);
+        Assert.Equal(2, redraws);
+        Assert.True(vm.IsRenderedMode);
+        Assert.Contains("<h2 style=", vm.PreviewHtml);
+
+        vm.OpenPreviewInBrowserCommand.Execute(null);
+        Assert.StartsWith("file:", browser.Url);
+        Assert.Contains("<h2 style=", File.ReadAllText(Path.Combine(store.Root, "preview.html")));
     }
 }
 
