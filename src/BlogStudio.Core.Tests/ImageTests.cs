@@ -130,7 +130,7 @@ public class ImageTests
         });
 
         var body = result.BodyMarkdown;
-        Assert.DoesNotContain("[사진", body);
+        Assert.DoesNotMatch(@"(?m)^\[사진", body);                               // 자리 표시 줄은 모두 사라짐
         Assert.Contains("![라멘 한 그릇](images/01_my.jpg)", body);
         Assert.True(body.IndexOf("![사진 1]", StringComparison.Ordinal) < body.IndexOf("## 한눈에 정리", StringComparison.Ordinal));
         Assert.Contains("![사진 3]", body);
