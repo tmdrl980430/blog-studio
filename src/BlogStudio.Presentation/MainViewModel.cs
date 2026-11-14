@@ -5,6 +5,7 @@ using BlogStudio.Core.Images;
 using BlogStudio.Core.Posts;
 using BlogStudio.Core.Prompting;
 using BlogStudio.Core.Rendering;
+using BlogStudio.Core.Review;
 using BlogStudio.Core.Scheduling;
 using BlogStudio.Core.Storage;
 using BlogStudio.Core.Themes;
@@ -249,12 +250,120 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(CopyForNaverCommand), nameof(CopyForTistoryCommand),
         nameof(AutoFillNaverCommand), nameof(AutoFillTistoryCommand),
         nameof(CopyMarkdownCommand), nameof(CopyTitleAndTagsCommand),
-        nameof(ShowRenderedCommand), nameof(ShowMarkdownCommand), nameof(OpenPreviewInBrowserCommand))]
+        nameof(ShowRenderedCommand), nameof(ShowMarkdownCommand), nameof(OpenPreviewInBrowserCommand),
+        nameof(ReviseCommand), nameof(StartEditCommand))]
     private bool _postReady;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(GenerateCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GenerateCommand), nameof(ReviseCommand), nameof(StartEditCommand))]
     private bool _isGenerating;
+
+    // ── 발행 전 점검 ──
+    public ObservableCollection<CheckItem> Checks { get; } = new();
+    [ObservableProperty] private string _checkSummary = "";
+
+    private void RunChecks(PostDraft post)
+    {
+        Checks.Clear();
+        foreach (var c in PostChecker.Check(post)) Checks.Add(c);
+        var warn = Checks.Count(c => c.Level == CheckLevel.Warn);
+        CheckSummary = warn == 0 ? "발행 전 점검 · 모두 좋아요" : $"발행 전 점검 · {warn}개 확인";
+    }
+
+    // ── Claude로 고치기 ──
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ReviseCommand))]
+    private string _revisionRequest = "";
+
+    private IReadOnlyList<PostImage> _savedImages = Array.Empty<PostImage>();
+
+    private bool CanRevise() => PostReady && !IsGenerating && !IsEditing && !string.IsNullOrWhiteSpace(RevisionRequest);
+
+    [RelayCommand(CanExecute = nameof(CanRevise), IncludeCancelCommand = true)]
+    private async Task ReviseAsync(CancellationToken ct)
+    {
+        if (_post is null || string.IsNullOrEmpty(_currentFile)) return;
+        IsGenerating = true;
+        StatusText = $"{_provider.Name}로 고치는 중… (1~2분)";
+        try
+        {
+            var prompt = PromptBuilder.BuildRevision(LocalStore.ToFileText(_post), RevisionRequest, _settings.Author);
+            var model = string.IsNullOrWhiteSpace(_settings.ClaudeModel) ? null : _settings.ClaudeModel;
+            var result = await _provider.GenerateAsync(new AiRequest(prompt.System, prompt.User, "main", model), ct);
+            var revised = PostParser.Parse(result.Text, _post.Topic, _post.TrackKey, _post.Date);
+            revised = revised with
+            {
+                Topic = _post.Topic,
+                ThumbnailLines = _post.ThumbnailLines,
+                PhotoQuery = _post.PhotoQuery,
+                IllustrationPrompt = _post.IllustrationPrompt,
+            };
+            SaveCurrent(revised);
+            RevisionRequest = "";
+            var lost = BlogHtmlRenderer.ImageSourcesInOrder(_post!.BodyMarkdown).Count < _savedImages.Count;
+            StatusText = lost ? "고쳤어요 — 이미지 일부가 빠졌어요. 직접 편집으로 확인해 주세요" : "고쳤어요";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "고치기를 취소했어요";
+        }
+        catch (Exception ex) when (ex is AiProviderException or FormatException)
+        {
+            StatusText = "고치지 못했어요: " + ex.Message;
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
+
+    // ── 직접 편집 ──
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ReviseCommand), nameof(StartEditCommand))]
+    private bool _isEditing;
+
+    [ObservableProperty] private string _editTitle = "";
+    [ObservableProperty] private string _editTags = "";
+    [ObservableProperty] private string _editBody = "";
+
+    private bool CanStartEdit() => PostReady && !IsGenerating && !IsEditing;
+
+    [RelayCommand(CanExecute = nameof(CanStartEdit))]
+    private void StartEdit()
+    {
+        if (_post is null) return;
+        EditTitle = _post.Title;
+        EditTags = string.Join(", ", _post.Tags);
+        EditBody = _post.BodyMarkdown;
+        IsEditing = true;
+    }
+
+    [RelayCommand]
+    private void SaveEdit()
+    {
+        if (_post is null || string.IsNullOrEmpty(_currentFile)) return;
+        if (string.IsNullOrWhiteSpace(EditTitle) || string.IsNullOrWhiteSpace(EditBody))
+        {
+            StatusText = "제목과 본문은 비울 수 없어요";
+            return;
+        }
+        var tags = EditTags.Split(new[] { ',', '#' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct().ToList();
+        IsEditing = false;
+        SaveCurrent(_post with { Title = EditTitle.Trim(), Tags = tags, BodyMarkdown = EditBody.TrimEnd() });
+        StatusText = "편집한 내용을 저장했어요";
+    }
+
+    [RelayCommand]
+    private void CancelEdit() => IsEditing = false;
+
+    /// <summary>지금 글을 같은 폴더에 덮어쓰고 미리보기·점검·목록을 새로 고친다.</summary>
+    private void SaveCurrent(PostDraft post)
+    {
+        _store.UpdatePost(_currentFile, post);
+        ShowPost(new SavedPost(post, _folder, _savedImages, _currentFile));
+        RefreshHistory();
+    }
 
     public bool HasPost => PostReady;
 
@@ -540,6 +649,9 @@ public sealed partial class MainViewModel : ObservableObject
         var post = saved.Post;
         _post = post;
         _folder = saved.Folder;
+        _savedImages = saved.Images;
+        IsEditing = false;
+        RunChecks(post);
         // 붙여넣기용: 이미지 자리는 "[이미지 N]" 표시 / 미리보기용: 실제 이미지
         _bodyHtml = BlogHtmlRenderer.ToBlogHtml(BlogHtmlRenderer.ReplaceImagesWithPlaceholders(post.BodyMarkdown));
         _previewBodyHtml = BlogHtmlRenderer.AbsolutizeImages(BlogHtmlRenderer.ToBlogHtml(post.BodyMarkdown), saved.Folder);

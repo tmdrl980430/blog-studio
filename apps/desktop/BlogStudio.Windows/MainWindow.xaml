@@ -254,9 +254,62 @@
                     <Button Content="HTML 복사 + 티스토리" ToolTip="티스토리 글쓰기에서 HTML 모드로 바꾼 뒤 붙여넣으면 표가 깨지지 않아요" Style="{StaticResource SecondaryButton}" Command="{Binding CopyForTistoryCommand}" Margin="0,0,4,0" />
                     <Button Content="본문 복사 + 네이버" Style="{StaticResource SecondaryButton}" Command="{Binding CopyForNaverCommand}" />
                 </WrapPanel>
+                <!-- 발행 전 점검 -->
+                <Expander DockPanel.Dock="Top" Header="{Binding CheckSummary}" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,8"
+                          Visibility="{Binding HasPost, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl ItemsSource="{Binding Checks}" Margin="4,6,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="12" Padding="10,4" Margin="0,0,6,6" Background="#EEF6EE">
+                                    <TextBlock FontSize="12" FontWeight="Normal" Foreground="#1F5130">
+                                        <Run Text="{Binding Icon, Mode=OneWay}" FontWeight="Bold" /> <Run Text="{Binding Text, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Level}" Value="Warn">
+                                                    <Setter Property="Background" Value="#FFF4E5" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Expander>
+
+                <!-- Claude로 고치기 / 직접 편집 -->
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" Visibility="{Binding HasPost, Converter={StaticResource BoolToVis}}">
+                    <Button DockPanel.Dock="Right" Content="직접 편집" Style="{StaticResource SecondaryButton}" Command="{Binding StartEditCommand}" Margin="6,0,0,0" />
+                    <Button DockPanel.Dock="Right" Content="Claude로 고치기" Style="{StaticResource PrimaryButton}" Command="{Binding ReviseCommand}" Margin="6,0,0,0" />
+                    <TextBox Text="{Binding RevisionRequest, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
+                             ToolTip="예: 도입부를 두 문장으로 줄여 줘 / 비교 표 하나 추가 / 제목을 더 검색되게" />
+                </DockPanel>
+
                 <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="1">
                     <Grid>
                         <wv2:WebView2 x:Name="Preview" />
+                        <!-- 직접 편집 (WebView2 위에는 겹쳐 그릴 수 없어서 편집 중엔 미리보기를 숨김) -->
+                        <DockPanel x:Name="EditPanel" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}" Margin="16" Background="White">
+                            <StackPanel DockPanel.Dock="Top">
+                                <TextBlock Text="제목" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,10" />
+                                <TextBlock Text="태그 (쉼표로 구분)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding EditTags, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,10" />
+                                <TextBlock Text="본문 (마크다운 · ![…](images/…) 줄은 이미지 자리)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            </StackPanel>
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                <Button Content="취소" Style="{StaticResource SecondaryButton}" Command="{Binding CancelEditCommand}" Margin="0,0,8,0" />
+                                <Button Content="저장" Style="{StaticResource PrimaryButton}" Command="{Binding SaveEditCommand}" />
+                            </StackPanel>
+                            <TextBox Text="{Binding EditBody, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas, Malgun Gothic" FontSize="13"
+                                     Padding="8" BorderBrush="{StaticResource Line}" />
+                        </DockPanel>
                         <!-- WebView2를 쓸 수 없을 때 안내 -->
                         <StackPanel x:Name="PreviewFallback" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="420">
                             <TextBlock Text="앱 안 미리보기를 표시할 수 없어요" FontWeight="Bold" FontSize="14" HorizontalAlignment="Center" />

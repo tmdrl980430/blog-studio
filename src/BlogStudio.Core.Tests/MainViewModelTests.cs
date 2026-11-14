@@ -160,6 +160,49 @@ public class MainViewModelTests
         Assert.Contains("이미 있어요", vm.StatusText);
     }
 
+    [Fact]
+    public async Task Revise_and_edit_rewrite_the_same_post()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-rev-").FullName);
+        var provider = new FakeProvider();
+        var vm = new MainViewModel(Fixtures.Themes(), store, provider, new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11));
+        await vm.InitializeCommand.ExecuteAsync(null);
+        Assert.False(vm.StartEditCommand.CanExecute(null));
+        await vm.GenerateCommand.ExecuteAsync(null);
+        Assert.NotEmpty(vm.Checks);
+        Assert.StartsWith("발행 전 점검", vm.CheckSummary);
+
+        Assert.False(vm.ReviseCommand.CanExecute(null));                        // 고칠 점이 비어 있으면 못 누름
+        vm.RevisionRequest = "도입부를 줄여 줘";
+        await vm.ReviseCommand.ExecuteAsync(null);
+        Assert.Contains("[고칠 점]\n도입부를 줄여 줘", provider.Last!.User);
+        Assert.Equal("", vm.RevisionRequest);
+        Assert.Single(store.LoadState().History);                               // 새 글이 아니라 같은 글
+
+        vm.StartEditCommand.Execute(null);
+        Assert.True(vm.IsEditing);
+        Assert.False(vm.ReviseCommand.CanExecute(null));
+        vm.EditTitle = "직접 고친 제목";
+        vm.EditTags = "파이썬, #코테, 파이썬";
+        vm.EditBody = "## 새 본문\n내용";
+        vm.SaveEditCommand.Execute(null);
+
+        Assert.False(vm.IsEditing);
+        Assert.Equal("직접 고친 제목", vm.PostTitle);
+        Assert.Equal("직접 고친 제목", vm.RecentPosts[0].Title);
+        var saved = store.LoadLatest()!;
+        Assert.Equal(new[] { "파이썬", "코테" }, saved.Post.Tags);
+        Assert.Contains("새 본문", saved.Post.BodyMarkdown);
+
+        vm.StartEditCommand.Execute(null);
+        vm.EditBody = "  ";
+        vm.SaveEditCommand.Execute(null);                                        // 빈 본문은 저장 안 함
+        Assert.True(vm.IsEditing);
+        vm.CancelEditCommand.Execute(null);
+        Assert.False(vm.IsEditing);
+    }
+
     private sealed class FakeBrowser : IBrowserLauncher
     {
         public string? Url;

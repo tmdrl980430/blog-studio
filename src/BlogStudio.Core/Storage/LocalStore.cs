@@ -123,13 +123,30 @@ public sealed class LocalStore
     public string SavePost(PostDraft post, bool advanceProgress) =>
         SavePost(post, advanceProgress, CreatePostFolder(post), Array.Empty<PostImage>());
 
+    /// <summary>post.md 형식 (front matter + 본문). 수정 요청 때 Claude에게도 이 형식으로 보낸다.</summary>
+    public static string ToFileText(PostDraft post) =>
+        $"---\ntitle: \"{Esc(post.Title)}\"\ntags: [{string.Join(", ", post.Tags)}]\nsummary: \"{Esc(post.Summary)}\"\n" +
+        $"topic: \"{Esc(post.Topic)}\"\ntrack: {post.TrackKey}\ndate: {post.Date:yyyy-MM-dd}\n---\n\n{post.BodyMarkdown}\n";
+
+    /// <summary>이미 저장한 글을 고친 내용으로 덮어쓴다 (진도·이미지는 그대로, 목록의 제목만 갱신).</summary>
+    public void UpdatePost(string fileName, PostDraft post)
+    {
+        var path = Path.Combine(PostsDirectory, fileName.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(path)) throw new FileNotFoundException("글 파일이 없어요", path);
+        File.WriteAllText(path, ToFileText(post));
+        var state = LoadState();
+        var index = state.History.FindLastIndex(h => h.FileName == fileName);
+        if (index >= 0)
+        {
+            state.History[index] = state.History[index] with { Title = post.Title };
+            Write(StatePath, state);
+        }
+    }
+
     public string SavePost(PostDraft post, bool advanceProgress, string folder, IReadOnlyList<PostImage> images)
     {
         var path = Path.Combine(folder, "post.md");
-        var tags = string.Join(", ", post.Tags);
-        File.WriteAllText(path,
-            $"---\ntitle: \"{Esc(post.Title)}\"\ntags: [{tags}]\nsummary: \"{Esc(post.Summary)}\"\n" +
-            $"topic: \"{Esc(post.Topic)}\"\ntrack: {post.TrackKey}\ndate: {post.Date:yyyy-MM-dd}\n---\n\n{post.BodyMarkdown}\n");
+        File.WriteAllText(path, ToFileText(post));
         File.WriteAllText(Path.Combine(folder, "images.json"), JsonSerializer.Serialize(images, Json));
 
         var state = LoadState();

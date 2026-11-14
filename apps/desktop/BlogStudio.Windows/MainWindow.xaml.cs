@@ -63,6 +63,8 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(MainViewModel.PreviewHtml))
             ShowPreview();
+        else if (e.PropertyName == nameof(MainViewModel.IsEditing))
+            Preview.Visibility = _vm.IsEditing ? Visibility.Hidden : Visibility.Visible;
     }
 
     private void ShowPreview()
