@@ -12,8 +12,11 @@ public partial class MainWindow : Window
     private readonly LocalStore _store;
     private bool _webReady;
 
-    public MainWindow(MainViewModel vm, LocalStore store)
+    private readonly bool _autoGenerate;
+
+    public MainWindow(MainViewModel vm, LocalStore store, bool autoGenerate = false)
     {
+        _autoGenerate = autoGenerate;
         InitializeComponent();
         _vm = vm;
         _store = store;
@@ -52,6 +55,7 @@ public partial class MainWindow : Window
                 ShowFallback("WebView2를 시작하지 못했어요: " + ex.Message);
             }
             await _vm.InitializeCommand.ExecuteAsync(null);
+            if (_autoGenerate) await _vm.AutoGenerateAsync();
         };
     }
 
@@ -59,6 +63,8 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(MainViewModel.PreviewHtml))
             ShowPreview();
+        else if (e.PropertyName == nameof(MainViewModel.IsEditing))
+            Preview.Visibility = _vm.IsEditing ? Visibility.Hidden : Visibility.Visible;
     }
 
     private void ShowPreview()
@@ -90,7 +96,7 @@ public partial class MainWindow : Window
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)
     {
-        var window = new SettingsWindow(new SettingsViewModel(_store)) { Owner = this };
+        var window = new SettingsWindow(new SettingsViewModel(_store, new Services.WindowsDailyScheduler())) { Owner = this };
         if (window.ShowDialog() == true)
             _vm.ReloadSettings();
     }

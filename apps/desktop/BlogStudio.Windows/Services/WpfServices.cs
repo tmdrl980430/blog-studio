@@ -29,6 +29,20 @@ public sealed class WpfClipboardService : IClipboardService
     }
 }
 
+public sealed class WpfFilePicker : IFilePicker
+{
+    public IReadOnlyList<string> PickImages()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "글에 넣을 사진 고르기",
+            Filter = "사진|*.jpg;*.jpeg;*.png;*.webp;*.gif|모든 파일|*.*",
+            Multiselect = true,
+        };
+        return dialog.ShowDialog() == true ? dialog.FileNames : Array.Empty<string>();
+    }
+}
+
 /// <summary>API 키를 현재 Windows 사용자만 풀 수 있게 DPAPI로 암호화.</summary>
 public sealed class DpapiSecretProtector : BlogStudio.Core.Storage.ISecretProtector
 {
