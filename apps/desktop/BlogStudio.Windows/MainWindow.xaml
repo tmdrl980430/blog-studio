@@ -95,10 +95,41 @@
                         </StackPanel>
                     </Border>
 
+                    <TextBlock Text="카테고리" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                    <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" DisplayMemberPath="Label"
+                              Height="34" Margin="0,0,0,16" VerticalContentAlignment="Center" />
+
                     <TextBlock FontSize="12" Foreground="{StaticResource Muted}">
                         <Run Text="{Binding DateLabel, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding TrackName, Mode=OneWay}" />
                     </TextBlock>
                     <TextBlock Text="{Binding TopicTitle}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" Margin="0,4,0,16" />
+
+                    <!-- 일상·리뷰: 메모가 있으면 후기, 비우면 위 주제로 정보 글 -->
+                    <StackPanel Visibility="{Binding IsMemoCategory, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
+                        <TextBlock Text="이름 (가게·장소·제품, 선택)" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <TextBox Text="{Binding MemoName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
+                        <TextBlock Text="내 메모 (비우면 정보 글)" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding MemoHint}" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                        <TextBox Text="{Binding MemoText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
+                                 Height="120" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" />
+                        <DockPanel Margin="0,12,0,6">
+                            <Button DockPanel.Dock="Right" Content="사진 추가" Style="{StaticResource SecondaryButton}" Command="{Binding AddPhotosCommand}" />
+                            <TextBlock Text="내 사진 (최대 10장, 글 속 어울리는 자리에 들어가요)" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding MemoPhotos}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,0,0,6">
+                                        <Image DockPanel.Dock="Left" Width="56" Height="40" Stretch="UniformToFill" Margin="0,0,8,0" Source="{Binding FullPath}" />
+                                        <Button DockPanel.Dock="Right" Content="빼기" Style="{StaticResource SecondaryButton}" VerticalAlignment="Center"
+                                                Command="{Binding DataContext.RemovePhotoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                        <TextBlock Text="{Binding Name}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
 
                     <TextBlock Text="추가 요청 (선택)" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
                     <TextBox Text="{Binding ExtraRequest, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
@@ -160,6 +191,26 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Border>
+
+                    <TextBlock Text="지난 글" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,24,0,8" />
+                    <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" MaxHeight="320">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding RecentPosts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.OpenPostCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" Cursor="Hand" HorizontalContentAlignment="Stretch"
+                                                Background="Transparent" BorderBrush="#EEF0F3" BorderThickness="0,0,0,1" Padding="12,8">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Meta}" FontSize="11" Foreground="{StaticResource Muted}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 
@@ -196,6 +247,8 @@
                     <Button Content="브라우저로 열기" Style="{StaticResource SecondaryButton}" Command="{Binding OpenPreviewInBrowserCommand}" Margin="0,0,16,0" />
                     <Button Content="제목·태그 복사" Style="{StaticResource SecondaryButton}" Command="{Binding CopyTitleAndTagsCommand}" Margin="0,0,4,0" />
                     <Button Content="마크다운 복사" Style="{StaticResource SecondaryButton}" Command="{Binding CopyMarkdownCommand}" Margin="0,0,4,0" />
+                    <CheckBox Content="네이버에 올림" IsChecked="{Binding IsPublishedNaver}" IsEnabled="{Binding HasPost}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <CheckBox Content="티스토리에 올림" IsChecked="{Binding IsPublishedTistory}" IsEnabled="{Binding HasPost}" VerticalAlignment="Center" Margin="0,0,16,0" />
                     <Button Content="티스토리 자동 채우기" ToolTip="앱 안 브라우저에서 제목·본문·이미지·태그를 채워요. 발행은 직접" Style="{StaticResource PrimaryButton}" Command="{Binding AutoFillTistoryCommand}" Margin="0,0,4,0" />
                     <Button Content="네이버 자동 채우기" ToolTip="앱 안 브라우저에서 제목·본문·이미지를 채워요. 발행은 직접" Style="{StaticResource PrimaryButton}" Command="{Binding AutoFillNaverCommand}" Margin="0,0,16,0" />
                     <Button Content="HTML 복사 + 티스토리" ToolTip="티스토리 글쓰기에서 HTML 모드로 바꾼 뒤 붙여넣으면 표가 깨지지 않아요" Style="{StaticResource SecondaryButton}" Command="{Binding CopyForTistoryCommand}" Margin="0,0,4,0" />

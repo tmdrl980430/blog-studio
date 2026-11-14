@@ -17,4 +17,9 @@ public sealed record PostDraft(
 }
 
 /// <summary>지금까지 쓴 글 기록 (state.json).</summary>
-public sealed record HistoryEntry(DateOnly Date, string TrackKey, string Topic, string Title, string FileName);
+/// <summary>저장한 글 한 편. PublishedTo: 사용자가 "올림"으로 표시한 블로그 ("naver", "tistory").</summary>
+public sealed record HistoryEntry(DateOnly Date, string TrackKey, string Topic, string Title, string FileName,
+    IReadOnlyList<string>? PublishedTo = null)
+{
+    public bool IsPublishedTo(string blog) => PublishedTo?.Contains(blog) == true;
+}
