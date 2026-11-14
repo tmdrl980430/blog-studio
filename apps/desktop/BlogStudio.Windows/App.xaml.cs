@@ -14,10 +14,17 @@ public partial class App : Application
     /// WPF가 자동으로 만드는 Main 대신 사용 (csproj의 StartupObject).
     /// 설치·업데이트·제거 때 Velopack이 특별한 인자로 앱을 실행하므로 가장 먼저 VelopackApp을 돌린다.
     /// </summary>
+    private static Mutex? _single;
+
     [STAThread]
     private static void Main(string[] args)
     {
         VelopackApp.Build().Run();
+
+        // 매일 자동 작성으로 실행됐는데 이미 앱이 열려 있으면 조용히 끝낸다 (두 번 쓰지 않게)
+        _single = new Mutex(true, @"Local\BlogStudio.Main", out var first);
+        if (!first && args.Contains(Services.WindowsDailyScheduler.AutoArgument)) return;
+
         var app = new App();
         app.InitializeComponent();
         app.Run();
@@ -43,7 +50,9 @@ public partial class App : Application
                 imageServices: new BlogStudio.Core.Images.ImageServices(store),
                 autoFill: new AutoFill.WpfAutoFillLauncher(clipboard), files: new WpfFilePicker());
 
-            var window = new MainWindow(viewModel, store);
+            var auto = e.Args.Contains(Services.WindowsDailyScheduler.AutoArgument);
+            var window = new MainWindow(viewModel, store, auto);
+            if (auto) window.WindowState = WindowState.Minimized;   // 작업 표시줄에서 확인
             MainWindow = window;
             window.Show();
         }

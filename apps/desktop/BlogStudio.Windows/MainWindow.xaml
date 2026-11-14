@@ -191,6 +191,26 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Border>
+
+                    <TextBlock Text="지난 글" FontSize="13" FontWeight="Bold" Foreground="{StaticResource Muted}" Margin="0,24,0,8" />
+                    <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" MaxHeight="320">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding RecentPosts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Command="{Binding DataContext.OpenPostCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" Cursor="Hand" HorizontalContentAlignment="Stretch"
+                                                Background="Transparent" BorderBrush="#EEF0F3" BorderThickness="0,0,0,1" Padding="12,8">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding Meta}" FontSize="11" Foreground="{StaticResource Muted}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 
@@ -227,6 +247,8 @@
                     <Button Content="브라우저로 열기" Style="{StaticResource SecondaryButton}" Command="{Binding OpenPreviewInBrowserCommand}" Margin="0,0,16,0" />
                     <Button Content="제목·태그 복사" Style="{StaticResource SecondaryButton}" Command="{Binding CopyTitleAndTagsCommand}" Margin="0,0,4,0" />
                     <Button Content="마크다운 복사" Style="{StaticResource SecondaryButton}" Command="{Binding CopyMarkdownCommand}" Margin="0,0,4,0" />
+                    <CheckBox Content="네이버에 올림" IsChecked="{Binding IsPublishedNaver}" IsEnabled="{Binding HasPost}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <CheckBox Content="티스토리에 올림" IsChecked="{Binding IsPublishedTistory}" IsEnabled="{Binding HasPost}" VerticalAlignment="Center" Margin="0,0,16,0" />
                     <Button Content="티스토리 자동 채우기" ToolTip="앱 안 브라우저에서 제목·본문·이미지·태그를 채워요. 발행은 직접" Style="{StaticResource PrimaryButton}" Command="{Binding AutoFillTistoryCommand}" Margin="0,0,4,0" />
                     <Button Content="네이버 자동 채우기" ToolTip="앱 안 브라우저에서 제목·본문·이미지를 채워요. 발행은 직접" Style="{StaticResource PrimaryButton}" Command="{Binding AutoFillNaverCommand}" Margin="0,0,16,0" />
                     <Button Content="HTML 복사 + 티스토리" ToolTip="티스토리 글쓰기에서 HTML 모드로 바꾼 뒤 붙여넣으면 표가 깨지지 않아요" Style="{StaticResource SecondaryButton}" Command="{Binding CopyForTistoryCommand}" Margin="0,0,4,0" />

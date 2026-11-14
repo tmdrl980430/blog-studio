@@ -28,6 +28,13 @@ public interface IAutoFillLauncher
     void Open(AutoFillPayload payload);
 }
 
+/// <summary>매일 정해진 시각에 앱을 "--auto-generate"로 실행 (Windows: 작업 스케줄러).</summary>
+public interface IDailyScheduler
+{
+    /// <summary>켜면 등록·시각 변경, 끄면 삭제. 실패하면 예외.</summary>
+    void Apply(bool enabled, TimeOnly time);
+}
+
 /// <summary>사진 파일 고르기 (플랫폼별 파일 대화상자).</summary>
 public interface IFilePicker
 {

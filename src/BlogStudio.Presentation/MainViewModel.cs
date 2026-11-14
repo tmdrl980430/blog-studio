@@ -26,6 +26,9 @@ public sealed record ImageItem(int Number, string KindLabel, string Caption, str
 /// <summary>글 종류: 기술 공부(요일별 커리큘럼) 또는 일상·리뷰 트랙(메모 후기 / 정보 글).</summary>
 public sealed record CategoryItem(string Key, string Label, bool IsMemoCategory);
 
+/// <summary>왼쪽 "지난 글" 목록 한 줄.</summary>
+public sealed record HistoryItem(HistoryEntry Entry, string Title, string Meta);
+
 public sealed record MemoPhoto(string FullPath)
 {
     public string Name => Path.GetFileName(FullPath);
@@ -84,6 +87,81 @@ public sealed partial class MainViewModel : ObservableObject
     public ObservableCollection<UpcomingTopicItem> UpcomingTopics { get; } = new();
 
     public ObservableCollection<CategoryItem> Categories { get; } = new();
+
+    // ── 지난 글 · 올림 표시 ──
+    public const int HistoryCount = 30;
+    public ObservableCollection<HistoryItem> RecentPosts { get; } = new();
+    private string _currentFile = "";
+    private bool _loadingPost;
+
+    [ObservableProperty] private bool _isPublishedNaver;
+    [ObservableProperty] private bool _isPublishedTistory;
+
+    partial void OnIsPublishedNaverChanged(bool value) => SavePublished("naver", value);
+    partial void OnIsPublishedTistoryChanged(bool value) => SavePublished("tistory", value);
+
+    private void SavePublished(string blog, bool value)
+    {
+        if (_loadingPost || string.IsNullOrEmpty(_currentFile)) return;
+        _store.SetPublished(_currentFile, blog, value);
+        RefreshHistory();
+    }
+
+    private string TrackLabel(string key) =>
+        _theme?.Curriculum.GetValueOrDefault(key)?.Name ?? _life?.Curriculum.GetValueOrDefault(key)?.Name ?? key;
+
+    private void RefreshHistory()
+    {
+        RecentPosts.Clear();
+        foreach (var h in _store.RecentPosts(HistoryCount))
+        {
+            var marks = string.Join(" ", new[] { ("naver", "네이버✓"), ("tistory", "티스토리✓") }
+                .Where(m => h.IsPublishedTo(m.Item1)).Select(m => m.Item2));
+            RecentPosts.Add(new HistoryItem(h, h.Title,
+                $"{h.Date:MM/dd} · {TrackLabel(h.TrackKey)}{(marks.Length > 0 ? " · " + marks : " · 아직 안 올림")}"));
+        }
+    }
+
+    [RelayCommand]
+    private void OpenPost(HistoryItem? item)
+    {
+        if (item is null || IsGenerating) return;
+        if (_store.LoadPost(item.Entry) is not { } saved)
+        {
+            StatusText = "글 파일을 찾지 못했어요 (지워졌을 수 있어요)";
+            RefreshHistory();
+            return;
+        }
+        ShowPost(saved);
+        StatusText = $"{item.Entry.Date:MM/dd} 글을 열었어요";
+    }
+
+    /// <summary>
+    /// 매일 자동 작성(작업 스케줄러가 "--auto-generate"로 실행)에서 부른다. 오늘의 기술 글을 만들고,
+    /// 오늘 이미 만든 글이 있으면 건너뛴다. 만들었으면 true.
+    /// </summary>
+    public async Task<bool> AutoGenerateAsync()
+    {
+        if (_theme is null) return false;
+        if (SelectedCategory?.Key != TechCategory) SelectedCategory = Categories.FirstOrDefault(c => c.Key == TechCategory);
+        if (_store.HasPostOn(_today(), _theme.Tracks))
+        {
+            StatusText = "매일 자동 작성: 오늘 글은 이미 있어요";
+            return false;
+        }
+        if (!IsProviderReady)
+        {
+            StatusText = "매일 자동 작성: Claude Code를 쓸 수 없어 건너뛰었어요 — 로그인 상태를 확인해 주세요";
+            return false;
+        }
+        if (_plan is null)
+        {
+            StatusText = "매일 자동 작성: 오늘은 쉬는 날이에요";
+            return false;
+        }
+        await GenerateCommand.ExecuteAsync(null);
+        return PostReady && _store.HasPostOn(_today(), _theme.Tracks);
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsMemoCategory))]
@@ -188,6 +266,7 @@ public sealed partial class MainViewModel : ObservableObject
         _prompts = new PromptBuilder(_themes.LoadBasePrompt());
         ThemeName = _theme.Name;
         LoadCategories();
+        RefreshHistory();
 
         if (_store.LoadLatest() is { } latest)
         {
@@ -405,7 +484,7 @@ public sealed partial class MainViewModel : ObservableObject
             var folder = _store.CreatePostFolder(post);
             var images = await ImagePipeline.RunAsync(post, folder, BuildImageOptions(_plan, theme, fromMemo, photos), ct);
             post = post with { BodyMarkdown = images.BodyMarkdown };
-            _store.SavePost(post, !fromMemo && _plan.Topic is not null, folder, images.Images);
+            var savedPath = _store.SavePost(post, !fromMemo && _plan.Topic is not null, folder, images.Images);
             if (IsMemoCategory)
             {
                 MemoName = "";
@@ -413,7 +492,8 @@ public sealed partial class MainViewModel : ObservableObject
                 MemoPhotos.Clear();
             }
 
-            ShowPost(new SavedPost(post, folder, images.Images));
+            ShowPost(new SavedPost(post, folder, images.Images, _store.RelativeFileName(savedPath)));
+            RefreshHistory();
             ExtraRequest = "";
             RefreshPlan();
             StatusText = images.Warnings.Count == 0
@@ -451,6 +531,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void ShowPost(SavedPost saved)
     {
+        _currentFile = saved.FileName;
+        var entry = _store.LoadState().History.LastOrDefault(h => h.FileName == saved.FileName);
+        _loadingPost = true;
+        IsPublishedNaver = entry?.IsPublishedTo("naver") == true;
+        IsPublishedTistory = entry?.IsPublishedTo("tistory") == true;
+        _loadingPost = false;
         var post = saved.Post;
         _post = post;
         _folder = saved.Folder;

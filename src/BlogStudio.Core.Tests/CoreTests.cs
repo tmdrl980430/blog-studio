@@ -69,6 +69,14 @@ public class ThemeRepositoryTests
     }
 
     [Fact]
+    public void Settings_have_daily_defaults()
+    {
+        var settings = new LocalStore(Directory.CreateTempSubdirectory("bs-set-").FullName).LoadSettings();
+        Assert.False(settings.DailyAutoEnabled);
+        Assert.Equal("07:30", settings.DailyTime);
+    }
+
+    [Fact]
     public void Base_prompt_has_placeholders_and_no_leading_comment()
     {
         var prompt = Fixtures.Themes().LoadBasePrompt();
