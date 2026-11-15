@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using BlogStudio.Core;
 using BlogStudio.Core.Ai;
 using BlogStudio.Core.Images;
+using BlogStudio.Core.Insta;
+using BlogStudio.Core.Stats;
 using BlogStudio.Core.Posts;
 using BlogStudio.Core.Prompting;
 using BlogStudio.Core.Rendering;
@@ -251,11 +253,11 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(AutoFillNaverCommand), nameof(AutoFillTistoryCommand),
         nameof(CopyMarkdownCommand), nameof(CopyTitleAndTagsCommand),
         nameof(ShowRenderedCommand), nameof(ShowMarkdownCommand), nameof(OpenPreviewInBrowserCommand),
-        nameof(ReviseCommand), nameof(StartEditCommand))]
+        nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand))]
     private bool _postReady;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(GenerateCommand), nameof(ReviseCommand), nameof(StartEditCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GenerateCommand), nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand))]
     private bool _isGenerating;
 
     // ── 발행 전 점검 ──
@@ -317,9 +319,60 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    // ── 인스타 카드 ──
+    /// <summary>카드가 만들어지면 (카드 파일들, 캡션) — 창이 결과를 보여 준다.</summary>
+    public event EventHandler<(IReadOnlyList<string> Files, string Caption)>? InstaCardsReady;
+
+    private bool CanMakeInsta() => PostReady && !IsGenerating && !IsEditing;
+
+    [RelayCommand(CanExecute = nameof(CanMakeInsta))]
+    private async Task MakeInstaCardsAsync(CancellationToken ct)
+    {
+        if (_post is null) return;
+        IsGenerating = true;
+        StatusText = "인스타 카드 문구를 만드는 중… (1분 안팎)";
+        try
+        {
+            var prompt = InstaCards.BuildPrompt(LocalStore.ToFileText(_post), _settings.Author);
+            var result = await _provider.GenerateAsync(new AiRequest(prompt.System, prompt.User, "light", "haiku"), ct);
+            var text = InstaCards.Parse(result.Text);
+
+            // 표지 사진: 내 사진 → 무료 사진 → 없으면 단색
+            var cover = _savedImages.FirstOrDefault(i => i.Kind == ImageKind.Photo && i.Credit is null)
+                        ?? _savedImages.FirstOrDefault(i => i.Kind == ImageKind.Photo);
+            var coverPath = cover is null ? null : Path.Combine(_folder, cover.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+            var color = (_life?.Curriculum.ContainsKey(_post.TrackKey) == true ? _life : _theme)?.ColorFor(_post.TrackKey) ?? "#2F5BEA";
+            var handle = string.IsNullOrWhiteSpace(_settings.BlogDisplayName) ? _settings.Author : _settings.BlogDisplayName;
+
+            var files = InstaCards.Save(_folder, InstaCards.Render(text, coverPath, color, handle ?? ""), text);
+            StatusText = $"인스타 카드 {files.Count}장을 만들었어요";
+            InstaCardsReady?.Invoke(this, (files, text.CaptionWithTags));
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "인스타 카드를 취소했어요";
+        }
+        catch (Exception ex) when (ex is AiProviderException or FormatException)
+        {
+            StatusText = "인스타 카드를 만들지 못했어요: " + ex.Message;
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CopyText(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        _clipboard.SetText(text);
+        StatusText = "복사했어요";
+    }
+
     // ── 직접 편집 ──
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ReviseCommand), nameof(StartEditCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand))]
     private bool _isEditing;
 
     [ObservableProperty] private string _editTitle = "";
@@ -372,6 +425,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = _store.LoadSettings();
         _theme = _themes.Load(_settings.ThemeSlug);
+        _store.ApplyTopicQueues(_theme);
         _prompts = new PromptBuilder(_themes.LoadBasePrompt());
         ThemeName = _theme.Name;
         LoadCategories();
@@ -496,13 +550,26 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = _store.LoadSettings();
         _theme = _themes.Load(_settings.ThemeSlug);
+        _store.ApplyTopicQueues(_theme);
         ThemeName = _theme.Name;
-        RefreshPlan();
+        LoadCategories();
+        RefreshHistory();
     }
+
+    /// <summary>주제 관리 창에 넘길 테마들 (기술 + 일상·리뷰).</summary>
+    public IReadOnlyList<ThemePack> LoadThemesForTopics()
+    {
+        var list = new List<ThemePack> { _themes.Load(_settings.ThemeSlug) };
+        if (_themes.ListThemeSlugs().Contains(LifeTheme)) list.Add(_themes.Load(LifeTheme));
+        return list;
+    }
+
+    public BlogStats BuildStats() => BlogStats.From(_store.LoadState().History, _today(), TrackLabel);
 
     private void LoadCategories()
     {
         _life = _themes.ListThemeSlugs().Contains(LifeTheme) ? _themes.Load(LifeTheme) : null;
+        if (_life is not null) _store.ApplyTopicQueues(_life);
         var keep = SelectedCategory?.Key;
         Categories.Clear();
         Categories.Add(new CategoryItem(TechCategory, "기술 공부 · 오늘의 주제", false));

@@ -203,6 +203,43 @@ public class MainViewModelTests
         Assert.False(vm.IsEditing);
     }
 
+    private sealed class InstaProvider : IAiProvider
+    {
+        public AiRequest? Last;
+        public string Name => "Fake";
+        public Task<string?> CheckAsync(CancellationToken ct = default) => Task.FromResult<string?>("1.0");
+        public Task<AiResult> GenerateAsync(AiRequest request, CancellationToken ct = default)
+        {
+            Last = request;
+            var text = request.User.StartsWith("[블로그 글]")
+                ? """{"cover":"표지","subtitle":"부제","slides":[{"heading":"하나","lines":["a"]}],"caption":"캡션","hashtags":["태그"]}"""
+                : Fixtures.SampleResponse;
+            return Task.FromResult(new AiResult(text, Name, "sonnet"));
+        }
+    }
+
+    [Fact]
+    public async Task Insta_cards_are_made_from_current_post_with_light_model()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-vm-insta-").FullName);
+        var provider = new InstaProvider();
+        var vm = new MainViewModel(Fixtures.Themes(), store, provider, new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11));
+        await vm.InitializeCommand.ExecuteAsync(null);
+        Assert.False(vm.MakeInstaCardsCommand.CanExecute(null));
+        await vm.GenerateCommand.ExecuteAsync(null);
+
+        (IReadOnlyList<string> Files, string Caption)? ready = null;
+        vm.InstaCardsReady += (_, r) => ready = r;
+        await vm.MakeInstaCardsCommand.ExecuteAsync(null);
+
+        Assert.Equal("haiku", provider.Last!.PreferredModel);
+        Assert.Equal(3, ready!.Value.Files.Count);
+        Assert.All(ready.Value.Files, f => Assert.True(File.Exists(f)));
+        Assert.Equal("캡션\n\n#태그", ready.Value.Caption);
+        Assert.Equal(1, vm.BuildStats().Total);
+    }
+
     private sealed class FakeBrowser : IBrowserLauncher
     {
         public string? Url;
