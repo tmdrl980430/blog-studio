@@ -147,7 +147,7 @@
                         <Button Content="글 생성하기 · Claude Code (Pro)" Style="{StaticResource PrimaryButton}" Height="44"
                                 Command="{Binding GenerateCommand}" />
                         <Button Grid.Column="1" Content="취소" Style="{StaticResource SecondaryButton}" Height="44" Margin="8,0,0,0"
-                                Command="{Binding GenerateCancelCommand}"
+                                Command="{Binding CancelWorkCommand}"
                                 Visibility="{Binding IsGenerating, Converter={StaticResource BoolToVis}}" />
                     </Grid>
                     <ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"

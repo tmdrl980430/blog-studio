@@ -86,6 +86,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void Save()
     {
+        ErrorText = "";
         if (!TimeOnly.TryParseExact(DailyTime.Trim(), new[] { "HH:mm", "H:mm" }, out var time))
         {
             ErrorText = "자동 작성 시각은 07:30처럼 24시간 형식으로 적어 주세요";

@@ -240,6 +240,40 @@ public class MainViewModelTests
         Assert.Equal(1, vm.BuildStats().Total);
     }
 
+    private sealed class SlowProvider : IAiProvider
+    {
+        public bool Slow;
+        public string Name => "Fake";
+        public Task<string?> CheckAsync(CancellationToken ct = default) => Task.FromResult<string?>("1.0");
+        public async Task<AiResult> GenerateAsync(AiRequest request, CancellationToken ct = default)
+        {
+            if (Slow) await Task.Delay(Timeout.Infinite, ct);
+            return new AiResult(Fixtures.SampleResponse, Name, "sonnet");
+        }
+    }
+
+    [Fact]
+    public async Task One_cancel_button_stops_revision_too()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-cancel-").FullName);
+        var provider = new SlowProvider();
+        var vm = new MainViewModel(Fixtures.Themes(), store, provider, new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11));
+        await vm.InitializeCommand.ExecuteAsync(null);
+        await vm.GenerateCommand.ExecuteAsync(null);
+
+        provider.Slow = true;
+        vm.RevisionRequest = "짧게";
+        var running = vm.ReviseCommand.ExecuteAsync(null);
+        Assert.True(vm.IsGenerating);
+        vm.CancelWorkCommand.Execute(null);
+        await running;
+
+        Assert.False(vm.IsGenerating);
+        Assert.Contains("취소", vm.StatusText);
+        Assert.Equal("짧게", vm.RevisionRequest);                               // 취소하면 고칠 점은 남겨 둠
+    }
+
     private sealed class FakeBrowser : IBrowserLauncher
     {
         public string? Url;

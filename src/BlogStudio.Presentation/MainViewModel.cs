@@ -319,6 +319,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>진행 중인 작업(글 쓰기·고치기·인스타 카드) 무엇이든 취소. 화면의 "취소" 버튼 하나가 이것을 부른다.</summary>
+    [RelayCommand]
+    private void CancelWork()
+    {
+        foreach (var cancel in new[] { GenerateCancelCommand, ReviseCancelCommand, MakeInstaCardsCancelCommand })
+            if (cancel.CanExecute(null)) cancel.Execute(null);
+    }
+
     // ── 인스타 카드 ──
     /// <summary>카드가 만들어지면 (카드 파일들, 캡션) — 창이 결과를 보여 준다.</summary>
     public event EventHandler<(IReadOnlyList<string> Files, string Caption)>? InstaCardsReady;
