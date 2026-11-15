@@ -32,6 +32,7 @@ public partial class MainWindow : Window
 
         vm.PropertyChanged += OnViewModelChanged;
         vm.PreviewRefreshRequested += (_, _) => ShowPreview();
+        vm.InstaCardsReady += (_, r) => new Extras.InstaWindow(r.Files, r.Caption) { Owner = this }.Show();
         Loaded += async (_, _) =>
         {
             try
@@ -93,6 +94,16 @@ public partial class MainWindow : Window
         Preview.Visibility = Visibility.Collapsed;
         PreviewFallback.Visibility = Visibility.Visible;
     }
+
+    private void OpenTopics_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new Extras.TopicManagerWindow(new TopicManagerViewModel(_store, _vm.LoadThemesForTopics())) { Owner = this };
+        if (window.ShowDialog() == true)
+            _vm.ReloadSettings();
+    }
+
+    private void OpenStats_Click(object sender, RoutedEventArgs e) =>
+        new Extras.StatsWindow(_vm.BuildStats()) { Owner = this }.ShowDialog();
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)
     {

@@ -61,6 +61,12 @@ public sealed record SavedPost(PostDraft Post, string Folder, IReadOnlyList<Post
 public sealed class StoreState
 {
     public Dictionary<string, int> Progress { get; set; } = new();
+
+    /// <summary>사용자가 고친 "앞으로 쓸 주제" 순서 (트랙별). 없으면 테마 커리큘럼 순서.</summary>
+    public Dictionary<string, List<string>> TopicQueues { get; set; } = new();
+
+    /// <summary>TopicQueues를 저장할 때의 진도. 그 뒤로 쓴 만큼 목록 앞에서 빠진다.</summary>
+    public Dictionary<string, int> TopicQueueBase { get; set; } = new();
     public List<HistoryEntry> History { get; set; } = new();
 }
 
@@ -107,6 +113,48 @@ public sealed class LocalStore
     public StoreState LoadState() => Read<StoreState>(StatePath) ?? new StoreState();
 
     public int NextIndex(string trackKey) => LoadState().Progress.GetValueOrDefault(trackKey);
+
+    /// <summary>
+    /// 사용자가 정한 주제 순서를 트랙에 반영: 이미 쓴 만큼(진도)은 그대로 두고 그 뒤를 사용자 목록으로 바꾼다.
+    /// 진도가 한 칸 넘어가면 자연스럽게 목록의 다음 주제가 된다.
+    /// </summary>
+    public void ApplyTopicQueues(Themes.ThemePack theme)
+    {
+        foreach (var track in theme.Curriculum.Values)
+        {
+            if (UpcomingQueue(track.Key) is not { } upcoming) continue;
+            var done = NextIndex(track.Key);
+            track.Topics = track.Topics.Take(done)
+                .Concat(Enumerable.Repeat("", Math.Max(0, done - track.Topics.Count)))
+                .Concat(upcoming).ToList();
+        }
+    }
+
+    /// <summary>사용자가 정한 "앞으로 쓸 주제" 중 아직 안 쓴 것. 정한 적 없으면 null.</summary>
+    public IReadOnlyList<string>? UpcomingQueue(string trackKey)
+    {
+        var state = LoadState();
+        if (!state.TopicQueues.TryGetValue(trackKey, out var queue)) return null;
+        var used = state.Progress.GetValueOrDefault(trackKey) - state.TopicQueueBase.GetValueOrDefault(trackKey);
+        return queue.Skip(Math.Max(0, used)).ToList();
+    }
+
+    /// <summary>앞으로 쓸 주제 목록 저장 (지금 진도 기준). null이면 원래 커리큘럼으로 되돌림.</summary>
+    public void SaveTopicQueue(string trackKey, IReadOnlyList<string>? upcoming)
+    {
+        var state = LoadState();
+        if (upcoming is null)
+        {
+            state.TopicQueues.Remove(trackKey);
+            state.TopicQueueBase.Remove(trackKey);
+        }
+        else
+        {
+            state.TopicQueues[trackKey] = upcoming.Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
+            state.TopicQueueBase[trackKey] = state.Progress.GetValueOrDefault(trackKey);
+        }
+        Write(StatePath, state);
+    }
 
     /// <summary>글 한 편의 폴더를 만든다: posts\날짜_트랙_제목\ (같은 이름이 있으면 _2, _3…).</summary>
     public string CreatePostFolder(PostDraft post)

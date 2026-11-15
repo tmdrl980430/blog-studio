@@ -22,6 +22,10 @@
                 <TextBlock x:Name="VersionText" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center" />
                 <Button DockPanel.Dock="Right" Content="설정" Style="{StaticResource SecondaryButton}"
                         Click="OpenSettings_Click" VerticalAlignment="Center" />
+                <Button DockPanel.Dock="Right" Content="통계" Style="{StaticResource SecondaryButton}"
+                        Click="OpenStats_Click" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <Button DockPanel.Dock="Right" Content="주제 관리" Style="{StaticResource SecondaryButton}"
+                        Click="OpenTopics_Click" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <!-- 새 버전 알림 (GitHub Releases) -->
                 <Border DockPanel.Dock="Right" Background="{StaticResource AccentSoft}" CornerRadius="8" Padding="12,4,4,4"
                         Margin="0,0,10,0" VerticalAlignment="Center"
@@ -284,6 +288,7 @@
 
                 <!-- Claude로 고치기 / 직접 편집 -->
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" Visibility="{Binding HasPost, Converter={StaticResource BoolToVis}}">
+                    <Button DockPanel.Dock="Right" Content="인스타 카드" ToolTip="이 글을 1080×1350 카드 뉴스와 캡션으로" Style="{StaticResource SecondaryButton}" Command="{Binding MakeInstaCardsCommand}" Margin="6,0,0,0" />
                     <Button DockPanel.Dock="Right" Content="직접 편집" Style="{StaticResource SecondaryButton}" Command="{Binding StartEditCommand}" Margin="6,0,0,0" />
                     <Button DockPanel.Dock="Right" Content="Claude로 고치기" Style="{StaticResource PrimaryButton}" Command="{Binding ReviseCommand}" Margin="6,0,0,0" />
                     <TextBox Text="{Binding RevisionRequest, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
