@@ -3,6 +3,15 @@
 테마를 골라 블로그 글을 AI로 작성하고, 미리보기로 확인한 뒤 네이버 블로그·티스토리에 붙여넣는 도구입니다.
 웹앱(휴대폰·크롬), Windows 앱, Mac 앱이 같은 계정과 데이터를 함께 씁니다.
 
+## 다운로드 (Windows)
+
+**[⬇ BlogStudio 설치 파일 받기](https://github.com/tmdrl980430/blog-studio/releases/latest/download/BlogStudio-win-Setup.exe)** — 항상 최신 버전
+
+- 받은 `BlogStudio-win-Setup.exe`를 실행하면 설치되고 바로 열립니다. .NET 따로 설치할 필요 없음.
+- "Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**.
+- 설치 후에는 앱이 새 버전을 알아서 받아 업데이트합니다.
+- 설치 없이 쓰려면 [포터블 zip](https://github.com/tmdrl980430/blog-studio/releases/latest/download/BlogStudio-win-Portable.zip) · [모든 버전](https://github.com/tmdrl980430/blog-studio/releases)
+
 | 영역 | 기술 |
 |---|---|
 | 웹앱 | React + TypeScript + Vite (PWA) |
