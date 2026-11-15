@@ -333,7 +333,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private bool CanMakeInsta() => PostReady && !IsGenerating && !IsEditing;
 
-    [RelayCommand(CanExecute = nameof(CanMakeInsta))]
+    [RelayCommand(CanExecute = nameof(CanMakeInsta), IncludeCancelCommand = true)]
     private async Task MakeInstaCardsAsync(CancellationToken ct)
     {
         if (_post is null) return;
