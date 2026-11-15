@@ -109,6 +109,37 @@ public class ImageTests
     }
 
     [Fact]
+    public async Task User_photos_fill_slots_and_leftovers_go_before_summary()
+    {
+        var src = Directory.CreateTempSubdirectory("bs-photos-").FullName;
+        var photos = Enumerable.Range(1, 3).Select(i =>
+        {
+            var path = Path.Combine(src, $"p{i}.JPG");
+            File.WriteAllBytes(path, new byte[] { 1, 2, 3, (byte)i });
+            return path;
+        }).ToList();
+        var post = Post() with
+        {
+            BodyMarkdown = "도입\n\n[사진 2: 라멘 한 그릇]\n\n## 메뉴\n맛있음\n[사진 9: 없는 번호]\n\n## 한눈에 정리\n끝",
+        };
+        var folder = Directory.CreateTempSubdirectory("bs-img5-").FullName;
+
+        var result = await ImagePipeline.RunAsync(post, folder, new ImagePipelineOptions
+        {
+            Thumbnail = false, UserPhotos = photos, Photos = new FakePhotos(),
+        });
+
+        var body = result.BodyMarkdown;
+        Assert.DoesNotMatch(@"(?m)^\[사진", body);                               // 자리 표시 줄은 모두 사라짐
+        Assert.Contains("![라멘 한 그릇](images/01_my.jpg)", body);
+        Assert.True(body.IndexOf("![사진 1]", StringComparison.Ordinal) < body.IndexOf("## 한눈에 정리", StringComparison.Ordinal));
+        Assert.Contains("![사진 3]", body);
+        Assert.Equal(3, result.Images.Count);                                   // Pexels 사진은 안 넣음
+        Assert.All(result.Images, i => Assert.True(File.Exists(Path.Combine(folder, i.RelativePath))));
+        Assert.Contains("\n\n## 메뉴", body);                                  // 자리 표시 정리 후에도 문단 유지
+    }
+
+    [Fact]
     public void Pexels_and_openai_responses_parse()
     {
         var photo = PexelsPhotoSearch.ParseFirst("""

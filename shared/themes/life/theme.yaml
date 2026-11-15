@@ -1,0 +1,37 @@
+slug: life
+name: 일상·리뷰 블로그
+version: 1
+description: >
+  맛집·카페, 여행·일상, 패션·코디, 제품 리뷰. [내 메모]가 있으면 블로그 주인이 직접 겪은 내용을 후기로,
+  메모가 없으면 [오늘의 주제]로 정보·가이드 글을 씁니다.
+topic_source: memo_or_ideas    # 메모가 있으면 후기, 없으면 트랙의 주제 아이디어를 순서대로
+tone: "친근하고 솔직한 블로거 말투. 존댓말, 광고 같은 과장 표현 금지."
+length: "본문 1,800~3,000자"
+model_tier: main
+structure:
+  - "도입 2~3문장 — 한 줄 평 또는 이 글이 누구에게 도움이 되는지"
+  - "본문 — 트랙 작성 가이드의 순서를 따름"
+  - "## 한눈에 정리 — 표 또는 핵심 3~5줄"
+rules:
+  - "메모 후기에서는 1인칭 경험을 살리되, 메모에 없는 경험·감정·사실을 덧붙이지 않음"
+  - "가격·영업시간처럼 바뀔 수 있는 정보는 '방문 당시 기준'처럼 시점을 밝힘"
+  - "협찬이 아니라면 '내돈내산'으로 쓰지 말고 메모에 적힌 대로만"
+tracks:
+  - food
+  - travel
+  - fashion
+  - product
+default_schedule: {}
+
+design:
+  accent: "#C2410C"
+  layout: "1단, 사진은 본문 가로 전체"
+  categories: ["맛집·카페", "여행·일상", "패션·코디", "제품 리뷰"]
+  tistory_skin: Odyssey
+  thumbnail: typo_card
+  track_colors:
+    food: "#C2410C"
+    travel: "#0F766E"
+    fashion: "#9D3B6B"
+    product: "#334155"
+  guides: [naver, tistory, design]

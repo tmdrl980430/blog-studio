@@ -4,6 +4,7 @@
         Title="설정" Width="500" Height="720" ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner" FontFamily="{StaticResource UiFont}" Background="White">
     <DockPanel>
+        <TextBlock DockPanel.Dock="Bottom" Text="{Binding ErrorText}" Foreground="#B42318" FontSize="12" TextWrapping="Wrap" Margin="24,8,24,0" />
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,12,24,20">
             <Button Content="취소" Style="{StaticResource SecondaryButton}" IsCancel="True" Margin="0,0,8,0" />
             <Button Content="저장" Style="{StaticResource PrimaryButton}" Command="{Binding SaveCommand}" IsDefault="True" />
@@ -25,6 +26,21 @@
                 <TextBlock Text="Claude 모델" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding ClaudeModel}" Height="32" Margin="0,0,0,4" />
                 <TextBlock Text="sonnet 권장 · opus는 품질↑ 사용량↑ · haiku는 가볍고 빠름" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,20" />
+
+                <!-- 매일 자동 작성 -->
+                <StackPanel Visibility="{Binding CanScheduleDaily, Converter={StaticResource BoolToVis}}" Margin="0,0,0,20">
+                    <TextBlock Text="매일 자동 작성" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" />
+                    <CheckBox Content="매일 정해진 시각에 오늘의 기술 글 만들기" IsChecked="{Binding DailyAutoEnabled}" Margin="0,0,0,6" />
+                    <StackPanel Orientation="Horizontal" Margin="22,0,0,4">
+                        <TextBlock Text="시각" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBox Text="{Binding DailyTime, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Width="80" />
+                        <TextBlock Text="(24시간, 예: 07:30)" FontSize="11" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </StackPanel>
+                    <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="22,0,0,0">
+                        그 시각에 앱이 열려 글을 만들어 둡니다. PC가 꺼져 있었으면 켠 뒤에 만들고, 오늘 글이 이미 있으면 건너뜁니다.
+                        올리기는 직접 확인한 뒤 자동 채우기로.
+                    </TextBlock>
+                </StackPanel>
 
                 <!-- 이미지 -->
                 <TextBlock Text="이미지" FontSize="15" FontWeight="Bold" Margin="0,0,0,10" />

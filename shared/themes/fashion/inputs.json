@@ -1,9 +1,0 @@
-{
-  "fields": [
-    {"key": "items", "label": "착용 아이템 (부위/아이템/브랜드/사이즈)", "type": "table",
-     "columns": ["부위", "아이템", "브랜드", "사이즈"], "required": true},
-    {"key": "body", "label": "키·체형", "type": "text"},
-    {"key": "mood", "label": "코디 분위기·상황", "type": "text"},
-    {"key": "photos", "label": "사진", "type": "images", "max": 10}
-  ]
-}

@@ -156,6 +156,29 @@
 
     hasPlaceholder(n) { return !!placeholder(n); },
 
+    // 본문 안 이미지 수 (붙여넣은 이미지가 업로드돼 들어왔는지 확인용)
+    imageCount() {
+      const ed = tinymceEditor();
+      if (ed) return ed.getBody().querySelectorAll('img').length;
+      return docs().reduce((sum, d) => sum + d.querySelectorAll('.se-component.se-image img, .se-image-resource').length, 0);
+    },
+
+    // [이미지 N] 안내 줄 지우기. TinyMCE(티스토리)는 편집기 기능으로 바로 지우고 'done',
+    // 그 밖의 편집기(네이버)는 줄을 선택해 두고 'select' → 앱이 Backspace 를 보낸다.
+    removePlaceholder(n) {
+      const el = placeholder(n);
+      if (!el) return 'none';
+      const ed = tinymceEditor();
+      if (ed && el.ownerDocument === ed.getDoc()) {
+        ed.undoManager && ed.undoManager.transact(() => ed.dom.remove(el));
+        ed.fire && ed.fire('change');
+        ed.save && ed.save();
+        return 'done';
+      }
+      selectAll(el);
+      return 'select';
+    },
+
     // [이미지 N] 줄을 선택해 두고 위치를 돌려준다 → 앱이 그 위에서 이미지 붙여넣기
     selectPlaceholder(n) {
       const el = placeholder(n);

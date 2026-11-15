@@ -57,5 +57,9 @@ public sealed class Track
 
     public string Name { get; set; } = "";
     public string Guide { get; set; } = "";
+
+    /// <summary>메모로 후기를 쓸 때 무엇을 적으면 좋은지 (앱 입력칸 안내).</summary>
+    public string MemoHint { get; set; } = "";
+
     public List<string> Topics { get; set; } = new();
 }

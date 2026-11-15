@@ -12,6 +12,9 @@ public sealed class ImagePipelineOptions
 
     public bool Diagrams { get; init; } = true;
 
+    /// <summary>사용자가 고른 사진 (본문의 [사진 N: 설명] 자리에 넣음). 있으면 Pexels 사진은 넣지 않는다.</summary>
+    public IReadOnlyList<string> UserPhotos { get; init; } = Array.Empty<string>();
+
     /// <summary>null이면 사진 단계 건너뜀 (Pexels 키 없음).</summary>
     public IPhotoSearch? Photos { get; init; }
 
@@ -30,6 +33,7 @@ public static class ImagePipeline
     public const string ImagesDir = "images";
     private static readonly Regex SvgBlock = new(@"```svg[^\n]*\n(?<svg>.*?)\n```", RegexOptions.Singleline);
     private static readonly Regex H2 = new(@"^## ", RegexOptions.Multiline);
+    private static readonly Regex PhotoSlot = new(@"^[ \t]*\[사진\s*(?<n>\d+)\s*[:：]\s*(?<cap>[^\]\n]*)\][ \t]*$", RegexOptions.Multiline);
 
     public static async Task<ImagePipelineResult> RunAsync(PostDraft post, string postFolder, ImagePipelineOptions options,
         CancellationToken ct = default)
@@ -63,8 +67,50 @@ public static class ImagePipeline
             }
         });
 
-        // 2) 사진 (Pexels) — 첫 소제목 섹션 뒤
-        if (options.Photos is not null && !string.IsNullOrWhiteSpace(post.PhotoQuery))
+        // 2-a) 내 사진 — 글의 [사진 N: 설명] 자리에. 자리가 없는 사진은 "## 한눈에 정리" 앞에 모아서.
+        if (options.UserPhotos.Count > 0)
+        {
+            var files = new string?[options.UserPhotos.Count];
+            string Copy(int index)
+            {
+                if (files[index] is { } done) return done;
+                var src = options.UserPhotos[index];
+                var ext = Path.GetExtension(src).ToLowerInvariant();
+                var file = $"{n:00}_my{(ext is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" ? ext : ".jpg")}";
+                File.Copy(src, Path.Combine(dir, file), overwrite: true);
+                n++;
+                return files[index] = $"{ImagesDir}/{file}";
+            }
+
+            body = PhotoSlot.Replace(body, m =>
+            {
+                var index = int.Parse(m.Groups["n"].Value) - 1;
+                if (index < 0 || index >= files.Length) return "";
+                if (files[index] is not null) return "";            // 같은 번호 두 번 → 한 번만
+                var cap = m.Groups["cap"].Value.Trim();
+                var rel = Copy(index);
+                images.Add(new PostImage(ImageKind.Photo, rel, cap));
+                return $"![{cap}]({rel})";
+            });
+            var rest = Enumerable.Range(0, files.Length).Where(i => files[i] is null).ToList();
+            if (rest.Count > 0)
+            {
+                var block = string.Join("\n\n", rest.Select(i =>
+                {
+                    var rel = Copy(i);
+                    images.Add(new PostImage(ImageKind.Photo, rel, $"사진 {i + 1}"));
+                    return $"![사진 {i + 1}]({rel})";
+                }));
+                body = InsertBeforeHeading(body, "## 한눈에 정리", block);
+            }
+        }
+        else
+        {
+            body = PhotoSlot.Replace(body, "");                          // 사진 없이 자리 표시만 나온 경우
+        }
+
+        // 2-b) 사진 (Pexels) — 내 사진이 없을 때만, 첫 소제목 섹션 뒤
+        if (options.UserPhotos.Count == 0 && options.Photos is not null && !string.IsNullOrWhiteSpace(post.PhotoQuery))
         {
             try
             {
