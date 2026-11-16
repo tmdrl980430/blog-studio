@@ -48,8 +48,15 @@ public interface IBrowserLauncher
 }
 
 /// <summary>Claude Code 설치·로그인을 앱 안에서 돕는다 (플랫폼별 구현).</summary>
+/// <summary>글 쓰는 AI 도구(Claude Code 또는 Codex) 설치·로그인. 어느 쪽인지는 설정의 Engine으로 정한다.</summary>
 public interface IClaudeCodeSetup
 {
+    /// <summary>안내 문구에 쓸 이름 (예: "Claude Code", "Codex").</summary>
+    string ToolName => "Claude Code";
+
+    /// <summary>로그인할 계정 (예: "Claude Pro", "ChatGPT").</summary>
+    string AccountName => "Claude Pro";
+
     /// <summary>공식 설치 스크립트를 보이는 창에서 실행하고 끝날 때까지 기다린다.</summary>
     Task<bool> InstallAsync(CancellationToken ct = default);
 

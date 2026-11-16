@@ -23,9 +23,27 @@
                 <TextBlock Text="티스토리 이름 (이름.tistory.com)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
                 <TextBox Text="{Binding TistoryName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
 
-                <TextBlock Text="Claude 모델" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
-                <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding ClaudeModel}" Height="32" Margin="0,0,0,4" />
-                <TextBlock Text="sonnet 권장 · opus는 품질↑ 사용량↑ · haiku는 가볍고 빠름" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,20" />
+                <TextBlock Text="글 쓰는 AI" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <ComboBox ItemsSource="{Binding EngineOptions}" SelectedItem="{Binding Engine}" DisplayMemberPath="Label" Height="32" Margin="0,0,0,4" />
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10">
+                    쓰고 있는 구독으로 돌아가요 (추가 요금 없음). 바꾼 뒤 처음이면 앱 위쪽 안내에서 설치·로그인을 해 주세요.
+                </TextBlock>
+
+                <StackPanel Visibility="{Binding IsClaude, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="Claude 모델" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding ClaudeModel}" Height="32" Margin="0,0,0,4" />
+                    <TextBlock Text="sonnet 권장 · opus는 품질↑ 사용량↑ · haiku는 가볍고 빠름" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,12" />
+                </StackPanel>
+                <StackPanel Visibility="{Binding IsChatGpt, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="ChatGPT 모델 (비우면 Codex 기본)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding ChatGptModel, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}" Margin="0,0,0,12" />
+                </StackPanel>
+
+                <CheckBox Content="사용량 절약 모드 (권장)" IsChecked="{Binding SaveUsage}" Margin="0,0,0,2" />
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="22,0,0,20">
+                    글쓰기에 필요 없는 기본 지시문·도구 설명을 빼고, ChatGPT는 생각(추론)을 짧게 해요.
+                    제목 추천·인스타 문구 같은 가벼운 일은 항상 작은 모델로 해요.
+                </TextBlock>
 
                 <!-- 글 품질 -->
                 <TextBlock Text="글 품질" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" />

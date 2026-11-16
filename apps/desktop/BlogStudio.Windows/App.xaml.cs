@@ -43,10 +43,14 @@ public partial class App : Application
         {
             var themes = new ThemeRepository(ThemeRepository.LocateSharedRoot());
             var store = new LocalStore(protector: new DpapiSecretProtector());
-            var provider = new ClaudeCodeProvider(new SystemProcessRunner());
+            var runner = new SystemProcessRunner();
+            var provider = new EngineRouter(
+                new ClaudeCodeProvider(runner, lean: () => store.LoadSettings().SaveUsage),
+                new CodexProvider(runner, saveUsage: () => store.LoadSettings().SaveUsage),
+                () => store.LoadSettings());
             var clipboard = new WpfClipboardService();
             var viewModel = new MainViewModel(themes, store, provider, clipboard, new ShellBrowserLauncher(),
-                setup: new WindowsClaudeCodeSetup(), updates: new VelopackUpdateService(),
+                setup: new WindowsClaudeCodeSetup(() => store.LoadSettings().Engine), updates: new VelopackUpdateService(),
                 imageServices: new BlogStudio.Core.Images.ImageServices(store),
                 autoFill: new AutoFill.WpfAutoFillLauncher(clipboard), files: new WpfFilePicker(),
                 codeChecker: new BlogStudio.Core.Quality.CodeChecker(new BlogStudio.Core.Ai.SystemProcessRunner()));

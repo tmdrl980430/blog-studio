@@ -11,25 +11,53 @@ public sealed class ClaudeCodeProvider : IAiProvider
     private readonly IProcessRunner _runner;
     private readonly Func<string?> _locate;
     private readonly TimeSpan _timeout;
+    private readonly Func<bool> _leanWanted;
+    private bool _leanUnsupported;
 
-    public ClaudeCodeProvider(IProcessRunner runner, Func<string?>? locate = null, TimeSpan? timeout = null)
+    /// <param name="lean">
+    /// 사용량 절약: Claude Code의 긴 기본 지시문과 도구 설명을 빼고(--system-prompt-file, --tools "")
+    /// 글쓰기에 필요한 내용만 보낸다. 설치된 Claude Code가 이 옵션을 모르면 예전 방식으로 한 번 더 실행한다.
+    /// </param>
+    public ClaudeCodeProvider(IProcessRunner runner, Func<string?>? locate = null, TimeSpan? timeout = null, Func<bool>? lean = null)
     {
         _runner = runner;
         _locate = locate ?? ClaudeCodeLocator.Find;
         _timeout = timeout ?? DefaultTimeout;
+        _leanWanted = lean ?? (() => true);
     }
 
     public string Name => "Claude Code (Claude Pro)";
 
+    /// <summary>지금 절약 모드로 실행하는지 (예전 Claude Code라 꺼졌으면 false).</summary>
+    public bool IsLean => _leanWanted() && !_leanUnsupported;
+
     /// <summary>ANTHROPIC_API_KEY가 있으면 Claude Code가 구독 대신 API 과금으로 바뀌므로 자식 프로세스에서 지운다.</summary>
     internal static readonly string[] StrippedVariables = { "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN" };
+
+    internal const string AnswerOnly = "(파일을 만들거나 도구를 쓰지 말고, 위 출력 형식의 글 본문만 그대로 답하세요.)";
 
     internal static string ModelFor(AiRequest request) =>
         !string.IsNullOrWhiteSpace(request.PreferredModel) ? request.PreferredModel!
         : request.ModelTier == "light" ? "haiku" : "sonnet";
 
     internal static string ComposePrompt(AiRequest request) =>
-        $"{request.System}\n\n=====\n\n{request.User}\n\n(파일을 만들거나 도구를 쓰지 말고, 위 출력 형식의 글 본문만 그대로 답하세요.)";
+        $"{request.System}\n\n=====\n\n{request.User}\n\n{AnswerOnly}";
+
+    internal static IReadOnlyList<string> LeanArguments(string model, string systemFile) => new[]
+    {
+        "-p", "--output-format", "text", "--model", model,
+        "--system-prompt-file", systemFile,
+        "--tools", "",
+        "--no-session-persistence",
+    };
+
+    internal static IReadOnlyList<string> LegacyArguments(string model) =>
+        new[] { "-p", "--output-format", "text", "--model", model };
+
+    /// <summary>예전 Claude Code가 새 옵션을 모를 때의 오류.</summary>
+    internal static bool IsUnknownOption(ProcessResult r) =>
+        r.ExitCode != 0 && System.Text.RegularExpressions.Regex.IsMatch(r.StandardError + r.StandardOutput,
+            @"unknown option|unknown argument|unexpected argument|error: option", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public async Task<string?> CheckAsync(CancellationToken ct = default)
     {
@@ -57,22 +85,19 @@ public sealed class ClaudeCodeProvider : IAiProvider
         var workDir = Directory.CreateTempSubdirectory("blogstudio-").FullName;
         try
         {
-            var result = await _runner.RunAsync(new ProcessSpec(
-                exe,
-                new[] { "-p", "--output-format", "text", "--model", model },
-                ComposePrompt(request),
-                workDir,
-                StrippedVariables,
-                _timeout), ct);
-
-            if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StandardOutput))
+            ProcessResult result;
+            if (IsLean)
             {
-                var detail = string.IsNullOrWhiteSpace(result.StandardError) ? result.StandardOutput : result.StandardError;
-                throw new AiProviderException(
-                    "Claude Code 실행에 실패했어요. 로그인 상태(터미널에서 claude → /login)나 사용량 한도를 확인해 주세요.\n"
-                    + Trim(detail, 800));
+                var systemFile = Path.Combine(workDir, "system.md");
+                await File.WriteAllTextAsync(systemFile, request.System, ct);
+                result = await _runner.RunAsync(new ProcessSpec(exe, LeanArguments(model, systemFile),
+                    $"{request.User}\n\n{AnswerOnly}", workDir, StrippedVariables, _timeout), ct);
+                if (IsUnknownOption(result)) _leanUnsupported = true;     // 예전 버전 → 아래에서 예전 방식으로
+                else return Check(result, model);
             }
-            return new AiResult(result.StandardOutput, Name, model);
+            result = await _runner.RunAsync(new ProcessSpec(exe, LegacyArguments(model), ComposePrompt(request),
+                workDir, StrippedVariables, _timeout), ct);
+            return Check(result, model);
         }
         finally
         {
@@ -80,22 +105,40 @@ public sealed class ClaudeCodeProvider : IAiProvider
         }
     }
 
-    private static string Trim(string s, int max) => s.Length <= max ? s.Trim() : s[..max].Trim() + "…";
+    private AiResult Check(ProcessResult result, string model)
+    {
+        if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StandardOutput))
+        {
+            var detail = string.IsNullOrWhiteSpace(result.StandardError) ? result.StandardOutput : result.StandardError;
+            throw new AiProviderException(
+                "Claude Code 실행에 실패했어요. 로그인 상태(터미널에서 claude → /login)나 사용량 한도를 확인해 주세요.\n"
+                + Trim(detail, 800));
+        }
+        return new AiResult(result.StandardOutput, Name, model);
+    }
+
+    internal static string Trim(string s, int max) => s.Length <= max ? s.Trim() : s[..max].Trim() + "…";
 }
 
 /// <summary>claude 실행 파일 찾기: PATH → 공식 설치 위치(~/.local/bin) → npm 전역 설치 위치.</summary>
 public static class ClaudeCodeLocator
 {
-    public static string? Find() => Find(
+    public static string? Find() => Find("claude");
+
+    /// <summary>같은 규칙으로 다른 CLI(codex 등)도 찾는다.</summary>
+    public static string? Find(string command) => Find(command,
         Environment.GetEnvironmentVariable("PATH") ?? "",
         Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         OperatingSystem.IsWindows(),
         File.Exists);
 
-    internal static string? Find(string pathVar, string home, string appData, bool windows, Func<string, bool> exists)
+    internal static string? Find(string pathVar, string home, string appData, bool windows, Func<string, bool> exists) =>
+        Find("claude", pathVar, home, appData, windows, exists);
+
+    internal static string? Find(string command, string pathVar, string home, string appData, bool windows, Func<string, bool> exists)
     {
-        var names = windows ? new[] { "claude.exe", "claude.cmd" } : new[] { "claude" };
+        var names = windows ? new[] { command + ".exe", command + ".cmd" } : new[] { command };
         var dirs = pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries).ToList();
         dirs.Add(Path.Combine(home, ".local", "bin"));
         if (windows) dirs.Add(Path.Combine(appData, "npm"));
