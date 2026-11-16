@@ -20,7 +20,7 @@ public sealed record BlogCategory(string Parent, string Child = "")
 }
 
 /// <summary>
-/// 블로그 카테고리 체계 (이슈 #19). 지금은 기본 체계만 있고, 설정에서 편집하는 칸은 다음 단계.
+/// 블로그 카테고리 체계 (이슈 #19). 설정의 "블로그 카테고리 목록"에서 고칠 수 있고, 비워 두면 기본 체계.
 /// 트랙마다 기본 카테고리가 정해져 있어 자동 작성 글도 카테고리를 갖는다.
 /// </summary>
 public static class BlogCategories
@@ -47,9 +47,43 @@ public static class BlogCategories
         ["product"] = 6,
     };
 
-    /// <summary>트랙의 기본 카테고리. 모르는 트랙이면 null (블로그 기본 카테고리로 발행).</summary>
-    public static BlogCategory? ForTrack(string trackKey) =>
-        TrackDefaults.TryGetValue(trackKey, out var i) ? Default[i] : null;
+    /// <summary>
+    /// 트랙의 기본 카테고리. 모르는 트랙이거나, 목록을 줬는데 그 목록에서 지운 카테고리면 null
+    /// (블로그 기본 카테고리로 발행).
+    /// </summary>
+    public static BlogCategory? ForTrack(string trackKey, IReadOnlyList<BlogCategory>? list = null)
+    {
+        if (!TrackDefaults.TryGetValue(trackKey, out var i)) return null;
+        return list is null ? Default[i] : Match(Default[i].ToString(), list);
+    }
+
+    /// <summary>
+    /// 설정에 저장된 줄들("상위 > 하위" 한 줄에 하나)을 목록으로 읽는다.
+    /// 빈 줄·중복(공백 차이 무시)은 버리고, 남는 게 없으면 기본 체계.
+    /// </summary>
+    public static IReadOnlyList<BlogCategory> FromLines(IEnumerable<string>? lines)
+    {
+        var list = new List<BlogCategory>();
+        var seen = new HashSet<string>();
+        foreach (var line in lines ?? Array.Empty<string>())
+        {
+            var c = BlogCategory.Parse(line);
+            if (c is not null && seen.Add(Key(c.ToString()))) list.Add(c);
+        }
+        return list.Count == 0 ? Default : list;
+    }
+
+    /// <summary>여러 줄 글(설정 창 입력칸)을 목록으로 읽는다.</summary>
+    public static IReadOnlyList<BlogCategory> FromText(string? text) =>
+        FromLines((text ?? "").Split('\n'));
+
+    /// <summary>설정 창 입력칸에 보여 줄 글 (한 줄에 하나).</summary>
+    public static string ToText(IReadOnlyList<BlogCategory> list) => string.Join(Environment.NewLine, list);
+
+    /// <summary>기본 체계와 같은 목록인지 (같으면 settings.json에 따로 적지 않는다).</summary>
+    public static bool IsDefault(IReadOnlyList<BlogCategory> list) => list.SequenceEqual(Default);
+
+    private static string Key(string s) => new(s.Where(c => !char.IsWhiteSpace(c)).ToArray());
 
     /// <summary>
     /// 글의 카테고리를 목록 안의 것으로 맞춘다. 공백·구분자 차이는 무시하고, 하위 이름만 맞아도 찾는다.
@@ -60,7 +94,6 @@ public static class BlogCategories
         var wanted = BlogCategory.Parse(text);
         if (wanted is null) return null;
         list ??= Default;
-        static string Key(string s) => new(s.Where(c => !char.IsWhiteSpace(c)).ToArray());
         var exact = list.FirstOrDefault(c => Key(c.Parent) == Key(wanted.Parent) && Key(c.Child) == Key(wanted.Child));
         if (exact is not null) return exact;
         // "CS 기초"처럼 하위만 온 경우
@@ -74,5 +107,5 @@ public static class BlogCategories
 
     /// <summary>글에 저장할 카테고리: 글에 적힌 값이 목록에 있으면 그것, 아니면 트랙 기본값, 둘 다 없으면 "".</summary>
     public static string Resolve(string? written, string trackKey, IReadOnlyList<BlogCategory>? list = null) =>
-        (Match(written, list) ?? ForTrack(trackKey))?.ToString() ?? "";
+        (Match(written, list) ?? ForTrack(trackKey, list))?.ToString() ?? "";
 }

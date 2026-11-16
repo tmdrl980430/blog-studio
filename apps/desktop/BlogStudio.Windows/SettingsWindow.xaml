@@ -58,6 +58,18 @@
                     파이썬이 설치돼 있어야 해요. 임시 폴더에서 10초 안에만 돌리고, 파일·네트워크를 쓰는 코드는 실행하지 않아요.
                 </TextBlock>
 
+                <!-- 블로그 카테고리 (이슈 #19) -->
+                <DockPanel Margin="0,0,0,4">
+                    <Button DockPanel.Dock="Right" Content="기본값으로" Style="{StaticResource SecondaryButton}" Command="{Binding ResetCategoriesCommand}" />
+                    <TextBlock Text="블로그 카테고리 목록" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" />
+                </DockPanel>
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,4">
+                    한 줄에 하나씩 "상위 &gt; 하위"로 적어요. 블로그에 실제로 있는 카테고리 이름과 같게 적어 주세요.
+                    새 글은 이 목록 안에서만 카테고리를 정하고, 맞는 게 없으면 블로그 기본 카테고리로 둬요. 비우면 기본 체계.
+                </TextBlock>
+                <TextBox Text="{Binding CategoriesText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
+                         Height="130" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,20" />
+
                 <!-- 매일 자동 작성 -->
                 <StackPanel Visibility="{Binding CanScheduleDaily, Converter={StaticResource BoolToVis}}" Margin="0,0,0,20">
                     <TextBlock Text="매일 자동 작성" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" />

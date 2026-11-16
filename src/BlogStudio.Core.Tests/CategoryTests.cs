@@ -91,4 +91,38 @@ public class CategoryTests
         Assert.Contains("topic, track, category, date 줄은 그대로", p.System);
         Assert.Contains("category: \"개발 > CS 기초\"", p.User);
     }
+
+    [Fact]
+    public void Custom_list_is_read_from_lines_skipping_blanks_and_duplicates()
+    {
+        var list = BlogCategories.FromLines(new[] { "개발 > 자바", "", "  ", "개발>자바", "일상", "생활 / 맛집·카페\r" });
+        Assert.Equal(new[] { "개발 > 자바", "일상", "생활 > 맛집·카페" }, list.Select(c => c.ToString()));
+
+        Assert.Same(BlogCategories.Default, BlogCategories.FromLines(null));
+        Assert.Same(BlogCategories.Default, BlogCategories.FromLines(new[] { "", " " }));
+        Assert.Equal(BlogCategories.Default, BlogCategories.FromText(BlogCategories.ToText(BlogCategories.Default)));
+        Assert.True(BlogCategories.IsDefault(BlogCategories.FromText("")));
+    }
+
+    [Fact]
+    public void Resolve_uses_custom_list_and_drops_track_default_removed_from_it()
+    {
+        var list = BlogCategories.FromLines(new[] { "개발 > 자바", "생활 > 맛집·카페" });
+        Assert.Equal("개발 > 자바", BlogCategories.Resolve("개발 > 자바", "cs", list));
+        Assert.Equal("생활 > 맛집·카페", BlogCategories.Resolve("", "food", list));     // 트랙 기본값이 목록에 있음
+        Assert.Equal("", BlogCategories.Resolve("", "cs", list));                     // 목록에서 지운 기본값은 쓰지 않음
+        Assert.Equal("", BlogCategories.Resolve("개발 > CS 기초", "cs", list));       // 목록에 없는 건 새로 만들지 않음
+        Assert.Null(BlogCategories.ForTrack("cs", list));
+    }
+
+    [Fact]
+    public void Old_settings_file_without_categories_uses_default_list()
+    {
+        var root = Directory.CreateTempSubdirectory("bs-cat-set-").FullName;
+        File.WriteAllText(Path.Combine(root, "settings.json"), "{\n  \"author\": \"승기\",\n  \"autoPublishEnabled\": false\n}");
+        var settings = new LocalStore(root).LoadSettings();
+        Assert.Empty(settings.Categories);
+        Assert.Equal("승기", settings.Author);
+        Assert.Same(BlogCategories.Default, BlogCategories.FromLines(settings.Categories));
+    }
 }

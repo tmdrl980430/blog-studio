@@ -1,3 +1,4 @@
+using BlogStudio.Core.Posts;
 using BlogStudio.Core.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,6 +35,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _autoPublishEnabled = _settings.AutoPublishEnabled;
         _autoPublishNaver = _settings.AutoPublishNaver;
         _autoPublishTistory = _settings.AutoPublishTistory;
+        _categoriesText = BlogCategories.ToText(BlogCategories.FromLines(_settings.Categories));
         _openAiImageQuality = string.IsNullOrWhiteSpace(_settings.OpenAiImageQuality) ? "low" : _settings.OpenAiImageQuality;
         PexelsKeyStatus = Mask(store.Reveal(_settings.PexelsApiKey));
         OpenAiKeyStatus = Mask(store.Reveal(_settings.OpenAiApiKey));
@@ -49,6 +51,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string _styleSample = "";
     [ObservableProperty] private bool _codeCheckEnabled;
     public int StyleSampleLimit => BlogStudio.Core.Prompting.PromptBuilder.StyleSampleLimit;
+
+    /// <summary>블로그 카테고리 목록 (한 줄에 "상위 > 하위" 하나, 비우면 기본 체계).</summary>
+    [ObservableProperty] private string _categoriesText;
+
+    [RelayCommand]
+    private void ResetCategories() => CategoriesText = BlogCategories.ToText(BlogCategories.Default);
 
     [ObservableProperty] private bool _dailyAutoEnabled;
     [ObservableProperty] private string _dailyTime;
@@ -148,6 +156,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         _settings.AutoPublishEnabled = AutoPublishEnabled;
         _settings.AutoPublishNaver = AutoPublishNaver;
         _settings.AutoPublishTistory = AutoPublishTistory;
+        var categories = BlogCategories.FromText(CategoriesText);
+        _settings.Categories = BlogCategories.IsDefault(categories)
+            ? new List<string>()
+            : categories.Select(c => c.ToString()).ToList();
         _settings.Author = Author.Trim();
         _settings.NaverBlogId = NaverBlogId.Trim();
         _settings.TistoryName = TistoryName.Trim();
