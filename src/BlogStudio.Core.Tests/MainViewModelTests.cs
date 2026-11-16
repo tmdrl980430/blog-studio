@@ -509,6 +509,24 @@ public class SettingsViewModelTests
     }
 
     [Fact]
+    public void Engine_choice_and_save_usage_are_saved()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-engine-").FullName);
+        var vm = new SettingsViewModel(store);
+        Assert.True(vm.IsClaude);
+        Assert.True(vm.SaveUsage);                                               // 기본은 절약 모드
+
+        vm.Engine = vm.EngineOptions.Single(e => e.Key == "chatgpt");
+        Assert.True(vm.IsChatGpt);
+        vm.ChatGptModel = " gpt-5.4 ";
+        vm.SaveUsage = false;
+        vm.SaveCommand.Execute(null);
+
+        var s = store.LoadSettings();
+        Assert.Equal(("chatgpt", "gpt-5.4", false), (s.Engine, s.ChatGptModel, s.SaveUsage));
+    }
+
+    [Fact]
     public void Daily_schedule_is_registered_only_when_changed_and_errors_keep_dialog_open()
     {
         var store = new LocalStore(Directory.CreateTempSubdirectory("bs-sched-").FullName);

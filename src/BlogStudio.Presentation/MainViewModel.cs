@@ -156,7 +156,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         if (!IsProviderReady)
         {
-            StatusText = "매일 자동 작성: Claude Code를 쓸 수 없어 건너뛰었어요 — 로그인 상태를 확인해 주세요";
+            StatusText = $"매일 자동 작성: {ToolName}를 쓸 수 없어 건너뛰었어요 — 로그인 상태를 확인해 주세요";
             return false;
         }
         if (_plan is null)
@@ -597,14 +597,22 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task CheckProviderAsync()
     {
-        ProviderStatus = "Claude Code 확인 중…";
+        ProviderStatus = $"{ToolName} 확인 중…";
         var version = await _provider.CheckAsync();
         IsProviderReady = version is not null;
         ShowClaudeSetup = !IsProviderReady;
         ProviderStatus = IsProviderReady
             ? $"{_provider.Name} 연결됨 · {version}"
-            : "Claude Code가 없어요 — 가운데 안내에서 자동 설치를 눌러 주세요";
+            : $"{ToolName}가 없어요 — 가운데 안내에서 자동 설치를 눌러 주세요";
     }
+
+    /// <summary>지금 고른 AI 도구 이름·계정 (설치 안내 문구용).</summary>
+    public string ToolName => _setup?.ToolName ?? "Claude Code";
+    public string AccountName => _setup?.AccountName ?? "Claude Pro";
+    public string SetupTitle => $"{ToolName}가 필요해요";
+    public string SetupHelp =>
+        $"{AccountName} 구독으로 글을 쓰려면 이 PC에 {ToolName}가 있어야 해요. 자동 설치를 누르면 공식 설치 프로그램이 실행되고, 끝나면 로그인 창이 열립니다.";
+    public string GenerateLabel => $"글 생성하기 · {_provider.Name}";
 
     private bool CanInstallClaudeCode() => _setup is not null && !IsProviderReady && !IsInstalling;
 
@@ -614,20 +622,20 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_setup is null) return;
         IsInstalling = true;
-        StatusText = "Claude Code 설치 중… 새로 열린 창이 끝날 때까지 기다려 주세요";
+        StatusText = $"{ToolName} 설치 중… 새로 열린 창이 끝날 때까지 기다려 주세요";
         try
         {
             var ok = await _setup.InstallAsync(ct);
             await CheckProviderAsync();
             if (IsProviderReady)
             {
-                StatusText = "설치 완료 — 열린 창에서 Claude Pro 계정으로 로그인해 주세요";
+                StatusText = $"설치 완료 — 열린 창에서 {AccountName} 계정으로 로그인해 주세요";
                 _setup.OpenLoginTerminal();
             }
             else
             {
                 StatusText = ok
-                    ? "설치는 끝났지만 claude를 찾지 못했어요. 앱을 다시 시작해 보세요"
+                    ? $"설치는 끝났지만 {ToolName}를 찾지 못했어요. 앱을 다시 시작해 보세요"
                     : "설치에 실패했어요. 설치 창의 메시지를 확인해 주세요";
             }
         }
@@ -661,6 +669,12 @@ public sealed partial class MainViewModel : ObservableObject
         ThemeName = _theme.Name;
         LoadCategories();
         RefreshHistory();
+        OnPropertyChanged(nameof(ToolName));
+        OnPropertyChanged(nameof(AccountName));
+        OnPropertyChanged(nameof(SetupTitle));
+        OnPropertyChanged(nameof(SetupHelp));
+        OnPropertyChanged(nameof(GenerateLabel));
+        _ = CheckProviderCommand.ExecuteAsync(null);                 // 글 쓰는 AI를 바꿨을 수 있음
     }
 
     /// <summary>주제 관리 창에 넘길 테마들 (기술 + 일상·리뷰).</summary>

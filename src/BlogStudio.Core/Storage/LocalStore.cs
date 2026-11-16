@@ -17,6 +17,18 @@ public sealed class AppSettings
     /// <summary>Claude Code에 넘길 모델 별칭 (sonnet / opus / haiku). 비우면 테마의 model_tier를 따름.</summary>
     public string ClaudeModel { get; set; } = "sonnet";
 
+    /// <summary>글 쓰는 AI: "claude"(Claude Pro · Claude Code) 또는 "chatgpt"(ChatGPT 구독 · Codex).</summary>
+    public string Engine { get; set; } = "claude";
+
+    /// <summary>ChatGPT(Codex) 모델. 비우면 codex 기본 모델.</summary>
+    public string ChatGptModel { get; set; } = "";
+
+    /// <summary>
+    /// 사용량 절약: Claude Code의 기본 지시문·도구 설명을 빼고, ChatGPT는 추론을 낮게,
+    /// 제목·카드 문구 같은 가벼운 일은 작은 모델로.
+    /// </summary>
+    public bool SaveUsage { get; set; } = true;
+
     /// <summary>요일별 트랙 덮어쓰기 (비우면 테마 기본값).</summary>
     public Dictionary<string, string> Schedule { get; set; } = new();
 

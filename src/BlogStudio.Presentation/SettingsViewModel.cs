@@ -24,6 +24,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         _thumbnailEnabled = _settings.ThumbnailEnabled;
         _diagramsEnabled = _settings.DiagramsEnabled;
         _aiImagesEnabled = _settings.AiImagesEnabled;
+        _engine = EngineOptions.FirstOrDefault(e => e.Key == _settings.Engine) ?? EngineOptions[0];
+        _chatGptModel = _settings.ChatGptModel;
+        _saveUsage = _settings.SaveUsage;
         _styleSample = _settings.StyleSample;
         _codeCheckEnabled = _settings.CodeCheckEnabled;
         _dailyAutoEnabled = _settings.DailyAutoEnabled;
@@ -43,6 +46,24 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool _dailyAutoEnabled;
     [ObservableProperty] private string _dailyTime;
     [ObservableProperty] private string _errorText = "";
+
+    public sealed record EngineOption(string Key, string Label);
+
+    public IReadOnlyList<EngineOption> EngineOptions { get; } = new[]
+    {
+        new EngineOption("claude", "Claude (Claude Pro 구독)"),
+        new EngineOption("chatgpt", "ChatGPT (ChatGPT 구독 · Codex)"),
+    };
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsClaude), nameof(IsChatGpt))]
+    private EngineOption _engine = null!;
+
+    public bool IsClaude => Engine.Key == "claude";
+    public bool IsChatGpt => Engine.Key == "chatgpt";
+
+    [ObservableProperty] private string _chatGptModel = "";
+    [ObservableProperty] private bool _saveUsage;
 
     public IReadOnlyList<string> ModelOptions { get; } = new[] { "sonnet", "opus", "haiku" };
     public IReadOnlyList<string> QualityOptions { get; } = new[] { "low", "medium", "high" };
@@ -110,6 +131,9 @@ public sealed partial class SettingsViewModel : ObservableObject
                 return;
             }
         }
+        _settings.Engine = Engine.Key;
+        _settings.ChatGptModel = ChatGptModel.Trim();
+        _settings.SaveUsage = SaveUsage;
         _settings.StyleSample = StyleSample.Trim();
         _settings.CodeCheckEnabled = CodeCheckEnabled;
         _settings.DailyAutoEnabled = DailyAutoEnabled && _scheduler is not null;

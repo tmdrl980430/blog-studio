@@ -290,33 +290,74 @@ public class LocalStoreTests
 
 public class ClaudeCodeProviderTests
 {
-    private sealed class FakeRunner : IProcessRunner
+    internal sealed class FakeRunner : IProcessRunner
     {
         public ProcessSpec? Last;
         public ProcessResult Result = new(0, Fixtures.SampleResponse, "");
+        public Func<ProcessSpec, ProcessResult>? Respond;
+        public Action<ProcessSpec>? OnRun;
 
         public Task<ProcessResult> RunAsync(ProcessSpec spec, CancellationToken ct = default)
         {
             Last = spec;
-            return Task.FromResult(Result);
+            OnRun?.Invoke(spec);
+            return Task.FromResult(Respond?.Invoke(spec) ?? Result);
         }
     }
 
     [Fact]
-    public async Task Runs_claude_headless_with_prompt_on_stdin_and_strips_api_key()
+    public async Task Lean_mode_replaces_system_prompt_and_disables_tools()
     {
         var runner = new FakeRunner();
+        string? systemFileText = null;
+        runner.OnRun = spec =>
+        {
+            var i = spec.Arguments.ToList().IndexOf("--system-prompt-file");
+            systemFileText = File.ReadAllText(spec.Arguments[i + 1]);
+        };
         var provider = new ClaudeCodeProvider(runner, () => "/usr/bin/claude");
 
         var result = await provider.GenerateAsync(new AiRequest("시스템", "사용자", "main"));
 
-        Assert.Equal("/usr/bin/claude", runner.Last!.FileName);
-        Assert.Equal(new[] { "-p", "--output-format", "text", "--model", "sonnet" }, runner.Last.Arguments);
-        Assert.Contains("시스템", runner.Last.StandardInput);
+        var args = runner.Last!.Arguments.ToList();
+        Assert.Equal("/usr/bin/claude", runner.Last.FileName);
+        Assert.Equal(new[] { "-p", "--output-format", "text", "--model", "sonnet" }, args.Take(5));
+        Assert.Equal("", args[args.IndexOf("--tools") + 1]);                     // 도구 설명을 아예 안 보냄
+        Assert.Contains("--no-session-persistence", args);
+        Assert.Equal("시스템", systemFileText);                                    // Claude Code 기본 지시문 대신
+        Assert.DoesNotContain("시스템", runner.Last.StandardInput);
         Assert.Contains("사용자", runner.Last.StandardInput);
         Assert.Contains("ANTHROPIC_API_KEY", runner.Last.RemoveEnvironmentVariables);
-        Assert.False(Directory.Exists(runner.Last.WorkingDirectory));   // 임시 폴더 정리됨
+        Assert.False(Directory.Exists(runner.Last.WorkingDirectory));            // 임시 폴더 정리됨
         Assert.Equal("sonnet", result.Model);
+        Assert.True(provider.IsLean);
+    }
+
+    [Fact]
+    public async Task Old_claude_code_falls_back_to_legacy_once_and_remembers()
+    {
+        var runner = new FakeRunner();
+        var calls = 0;
+        runner.Respond = spec => ++calls == 1 && spec.Arguments.Contains("--tools")
+            ? new ProcessResult(1, "", "error: unknown option '--tools'")
+            : new ProcessResult(0, Fixtures.SampleResponse, "");
+        var provider = new ClaudeCodeProvider(runner, () => "claude");
+
+        await provider.GenerateAsync(new AiRequest("시스템", "사용자"));
+        Assert.Equal(new[] { "-p", "--output-format", "text", "--model", "sonnet" }, runner.Last!.Arguments);
+        Assert.Contains("시스템", runner.Last.StandardInput);
+        Assert.False(provider.IsLean);
+
+        await provider.GenerateAsync(new AiRequest("s", "u"));
+        Assert.Equal(3, calls);                                                    // 두 번째부터는 바로 예전 방식
+    }
+
+    [Fact]
+    public async Task Lean_off_uses_legacy_arguments()
+    {
+        var runner = new FakeRunner();
+        await new ClaudeCodeProvider(runner, () => "claude", lean: () => false).GenerateAsync(new AiRequest("s", "u"));
+        Assert.Equal(new[] { "-p", "--output-format", "text", "--model", "sonnet" }, runner.Last!.Arguments);
     }
 
     [Fact]
@@ -325,9 +366,9 @@ public class ClaudeCodeProviderTests
         var runner = new FakeRunner();
         var provider = new ClaudeCodeProvider(runner, () => "claude");
         await provider.GenerateAsync(new AiRequest("s", "u", "light"));
-        Assert.Equal("haiku", runner.Last!.Arguments[^1]);
+        Assert.Equal("haiku", runner.Last!.Arguments[4]);
         await provider.GenerateAsync(new AiRequest("s", "u", "light", "opus"));
-        Assert.Equal("opus", runner.Last!.Arguments[^1]);
+        Assert.Equal("opus", runner.Last!.Arguments[4]);
     }
 
     [Fact]
@@ -354,5 +395,109 @@ public class ClaudeCodeProviderTests
         var onPath = ClaudeCodeLocator.Find($"/a{sep}/b", "/home/me", "/appdata", windows: true,
             exists: p => p == Path.Combine("/b", "claude.cmd"));
         Assert.Equal(Path.Combine("/b", "claude.cmd"), onPath);
+
+        var codex = ClaudeCodeLocator.Find("codex", $"/a{sep}/b", "/home/me", "/appdata", windows: true,
+            exists: p => p == Path.Combine("/appdata", "npm", "codex.cmd"));
+        Assert.Equal(Path.Combine("/appdata", "npm", "codex.cmd"), codex);
+    }
+}
+
+public class CodexProviderTests
+{
+    /// <summary>codex exec 흉내: -o 로 받은 파일에 답을 쓴다.</summary>
+    private static ClaudeCodeProviderTests.FakeRunner Runner(string answer = "답", int exit = 0, string stderr = "")
+    {
+        var runner = new ClaudeCodeProviderTests.FakeRunner();
+        runner.Respond = spec =>
+        {
+            if (spec.Arguments.Contains("--version")) return new ProcessResult(0, "codex-cli 0.80.0", "");
+            var args = spec.Arguments.ToList();
+            if (exit == 0) File.WriteAllText(args[args.IndexOf("-o") + 1], answer);
+            return new ProcessResult(exit, "진행 로그", stderr);
+        };
+        return runner;
+    }
+
+    [Fact]
+    public async Task Runs_codex_exec_read_only_with_prompt_on_stdin_and_reads_answer_file()
+    {
+        var runner = Runner(Fixtures.SampleResponse);
+        var provider = new CodexProvider(runner, () => @"C:\npm\codex.cmd", saveUsage: () => true);
+
+        var r = await provider.GenerateAsync(new AiRequest("시스템", "사용자", "main", "sonnet"));
+
+        var args = runner.Last!.Arguments.ToList();
+        Assert.Equal("exec", args[0]);
+        Assert.Contains("--skip-git-repo-check", args);
+        Assert.Contains("--ephemeral", args);
+        Assert.Equal("read-only", args[args.IndexOf("--sandbox") + 1]);
+        Assert.Contains("model_reasoning_effort=low", args);
+        Assert.DoesNotContain("-m", args);                                       // Claude 모델 이름은 안 넘김
+        Assert.Equal("-", args[^1]);
+        Assert.Contains("시스템", runner.Last.StandardInput);
+        Assert.Contains("사용자", runner.Last.StandardInput);
+        Assert.Contains("OPENAI_API_KEY", runner.Last.RemoveEnvironmentVariables); // API 과금으로 새지 않게
+        Assert.Equal(Fixtures.SampleResponse, r.Text);                             // 진행 로그(stdout)가 아니라 답 파일
+        Assert.False(Directory.Exists(runner.Last.WorkingDirectory));
+    }
+
+    [Fact]
+    public async Task Effort_and_model_follow_settings()
+    {
+        var runner = Runner();
+        var provider = new CodexProvider(runner, () => "codex", saveUsage: () => false);
+        await provider.GenerateAsync(new AiRequest("s", "u", "main", "gpt-5.4"));
+        Assert.Contains("model_reasoning_effort=medium", runner.Last!.Arguments);
+        Assert.Equal("gpt-5.4", runner.Last.Arguments[runner.Last.Arguments.ToList().IndexOf("-m") + 1]);
+        await provider.GenerateAsync(new AiRequest("s", "u", "light"));
+        Assert.Contains("model_reasoning_effort=low", runner.Last!.Arguments);
+    }
+
+    [Fact]
+    public async Task Failures_are_friendly()
+    {
+        var failing = new CodexProvider(Runner(exit: 1, stderr: "Not signed in"), () => "codex");
+        var ex = await Assert.ThrowsAsync<AiProviderException>(() => failing.GenerateAsync(new AiRequest("s", "u")));
+        Assert.Contains("ChatGPT 로그인", ex.Message);
+        Assert.Contains("Not signed in", ex.Message);
+
+        var missing = new CodexProvider(Runner(), () => null);
+        await Assert.ThrowsAsync<AiProviderException>(() => missing.GenerateAsync(new AiRequest("s", "u")));
+        Assert.Null(await missing.CheckAsync());
+        Assert.Equal("codex-cli 0.80.0", await new CodexProvider(Runner(), () => "codex").CheckAsync());
+    }
+
+    private sealed class Recorder : IAiProvider
+    {
+        public Recorder(string name) => Name = name;
+        public string Name { get; }
+        public AiRequest? Last;
+        public Task<string?> CheckAsync(CancellationToken ct = default) => Task.FromResult<string?>(Name);
+        public Task<AiResult> GenerateAsync(AiRequest request, CancellationToken ct = default)
+        {
+            Last = request;
+            return Task.FromResult(new AiResult("t", Name, "m"));
+        }
+    }
+
+    [Fact]
+    public async Task Router_follows_engine_setting_and_maps_models()
+    {
+        var settings = new AppSettings();
+        var claude = new Recorder("claude");
+        var gpt = new Recorder("gpt");
+        var router = new EngineRouter(claude, gpt, () => settings);
+
+        Assert.Equal("claude", router.Name);
+        await router.GenerateAsync(new AiRequest("s", "u", "main", "sonnet"));
+        Assert.Equal("sonnet", claude.Last!.PreferredModel);
+
+        settings.Engine = EngineRouter.ChatGpt;
+        settings.ChatGptModel = " gpt-5.4 ";
+        Assert.Equal("gpt", await router.CheckAsync());
+        await router.GenerateAsync(new AiRequest("s", "u", "main", "sonnet"));
+        Assert.Equal("gpt-5.4", gpt.Last!.PreferredModel);
+        await router.GenerateAsync(new AiRequest("s", "u", "light", "haiku"));
+        Assert.Null(gpt.Last!.PreferredModel);                                    // 가벼운 일은 codex 기본 + 낮은 추론
     }
 }
