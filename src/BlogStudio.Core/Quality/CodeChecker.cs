@@ -22,7 +22,7 @@ public sealed record CodeCheck(int Number, CodeStatus Status, string Message)
 public sealed class CodeChecker
 {
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
-    private static readonly Regex Block = new(@"(?ms)^```(?<lang>[A-Za-z0-9_+-]*)[ \t]*\r?\n(?<code>.*?)^```[ \t]*$");
+    private static readonly Regex Block = new(@"(?ms)^```(?<lang>[A-Za-z0-9_+-]*)[ \t]*\r?\n(?<code>.*?)^```[ \t]*\r?$");
     private static readonly Regex Risky = new(
         @"\b(import\s+(os|shutil|subprocess|socket|requests|urllib|http|pathlib|ctypes|multiprocessing|threading|asyncio|webbrowser|tkinter)\b|from\s+(os|shutil|subprocess|socket|requests|urllib|http|pathlib|ctypes)\b|open\s*\(|__import__|eval\s*\(|exec\s*\(|compile\s*\()");
     private static readonly Regex NeedsInput = new(@"\binput\s*\(|sys\.stdin|stdin\.read");

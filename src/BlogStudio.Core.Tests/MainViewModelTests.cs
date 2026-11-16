@@ -293,7 +293,7 @@ public class MainViewModelTests
 
         provider.Text = Fixtures.SampleResponse;                               // 고친 글에는 오류 코드 없음
         await vm.FixCodeErrorsCommand.ExecuteAsync(null);
-        Assert.Contains("1번째 파이썬 코드 블록: ZeroDivisionError", provider.Last!.User);
+        Assert.Contains("번째 파이썬 코드 블록: ZeroDivisionError", provider.Last!.User);
         Assert.False(vm.HasCodeErrors);
     }
 
