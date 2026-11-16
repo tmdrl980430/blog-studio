@@ -75,3 +75,66 @@ public partial class InstaWindow : Window
     private void OpenFolder_Click(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(_folder) { UseShellExecute = true });
 }
+
+/// <summary>shared/guides 문서를 테마 값으로 채워 보여 주고, CSS·HTML 코드는 버튼으로 복사한다.</summary>
+public partial class GuideWindow : Window
+{
+    private bool _webReady;
+
+    public GuideWindow(IReadOnlyList<BlogStudio.Core.Themes.BlogGuide> guides, string themeName)
+    {
+        InitializeComponent();
+        SubTitle.Text = $"'{themeName}' 테마 기준으로 카테고리·색을 채웠어요. 블로그를 처음 만들거나 꾸밀 때 위에서부터 따라 하세요.";
+        View.CreationProperties = new Microsoft.Web.WebView2.Wpf.CoreWebView2CreationProperties
+        {
+            UserDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlogStudio", "WebView2"),
+        };
+        Guides.ItemsSource = guides;
+        Loaded += async (_, _) =>
+        {
+            try
+            {
+                await View.EnsureCoreWebView2Async();
+                _webReady = true;
+            }
+            catch (Exception)
+            {
+                View.Visibility = Visibility.Collapsed;
+                Fallback.Visibility = Visibility.Visible;
+            }
+            if (guides.Count > 0) Guides.SelectedIndex = 0;
+            else ShowGuide(null);
+        };
+    }
+
+    private void Guides_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+        ShowGuide(Guides.SelectedItem as BlogStudio.Core.Themes.BlogGuide);
+
+    private void ShowGuide(BlogStudio.Core.Themes.BlogGuide? guide)
+    {
+        CodeBlocks.ItemsSource = guide?.CodeBlocks;
+        var hasCode = guide is { CodeBlocks.Count: > 0 };
+        CodeHeader.Visibility = hasCode ? Visibility.Visible : Visibility.Collapsed;
+        CopyStatus.Text = "";
+        if (_webReady)
+            View.NavigateToString(guide?.ToHtmlPage()
+                ?? BlogStudio.Core.Rendering.BlogHtmlRenderer.EmptyPage("가이드 문서를 찾지 못했어요 (shared/guides)"));
+        else
+            Fallback.Text = guide?.Markdown ?? "가이드 문서를 찾지 못했어요 (shared/guides)";
+    }
+
+    private void CopyCode_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not BlogStudio.Core.Themes.GuideCodeBlock block) return;
+        try
+        {
+            Clipboard.SetText(block.Code);
+            CopyStatus.Text = $"{block.Language.ToUpperInvariant()} 코드를 복사했어요";
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            CopyStatus.Text = "클립보드를 쓸 수 없어요. 잠시 뒤 다시 눌러 주세요";
+        }
+    }
+}

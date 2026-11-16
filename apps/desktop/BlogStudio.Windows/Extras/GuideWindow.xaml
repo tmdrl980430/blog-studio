@@ -1,0 +1,44 @@
+<Window x:Class="BlogStudio.Windows.Extras.GuideWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="블로그 준비 가이드" Width="1040" Height="760" WindowStartupLocation="CenterOwner"
+        FontFamily="{StaticResource UiFont}" Background="#F6F7F9">
+    <DockPanel Margin="20">
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <TextBlock Text="블로그 준비 가이드" FontSize="18" FontWeight="Bold" />
+            <TextBlock x:Name="SubTitle" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- 왼쪽: 문서 고르기 + 복사할 코드 -->
+        <StackPanel DockPanel.Dock="Left" Width="280" Margin="0,0,14,0">
+            <ListBox x:Name="Guides" DisplayMemberPath="Title" SelectionChanged="Guides_SelectionChanged"
+                     BorderBrush="{StaticResource Line}" Padding="4" />
+            <TextBlock x:Name="CodeHeader" Text="복사해서 붙여넣을 코드" FontWeight="SemiBold" FontSize="12" Margin="0,16,0,6" />
+            <ItemsControl x:Name="CodeBlocks">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="복사" Style="{StaticResource PrimaryButton}" MinHeight="28"
+                                        Click="CopyCode_Click" Tag="{Binding}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Label}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock x:Name="CopyStatus" FontSize="11" Foreground="#1F5130" Margin="0,4,0,0" />
+        </StackPanel>
+
+        <!-- 오른쪽: 문서 -->
+        <Border Background="White" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8">
+            <Grid>
+                <wv2:WebView2 x:Name="View" />
+                <!-- WebView2를 쓸 수 없으면 글자로 보여 줌 -->
+                <TextBox x:Name="Fallback" Visibility="Collapsed" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Padding="16"
+                         VerticalScrollBarVisibility="Auto" FontSize="13" />
+            </Grid>
+        </Border>
+    </DockPanel>
+</Window>

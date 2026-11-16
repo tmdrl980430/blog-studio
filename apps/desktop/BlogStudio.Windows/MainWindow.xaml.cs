@@ -102,6 +102,9 @@ public partial class MainWindow : Window
             _vm.ReloadSettings();
     }
 
+    private void OpenGuides_Click(object sender, RoutedEventArgs e) =>
+        new Extras.GuideWindow(_vm.LoadGuides(), _vm.ThemeName) { Owner = this }.Show();
+
     private void OpenStats_Click(object sender, RoutedEventArgs e) =>
         new Extras.StatsWindow(_vm.BuildStats()) { Owner = this }.ShowDialog();
 

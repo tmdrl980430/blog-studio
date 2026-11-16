@@ -78,6 +78,9 @@ public sealed class ThemeRepository
         return File.Exists(path) ? StripLeadingComment(File.ReadAllText(path)) : "";
     }
 
+    /// <summary>shared/guides/*.md — 블로그 준비 가이드 (테마 design 값으로 채움).</summary>
+    public IReadOnlyList<BlogGuide> LoadGuides(ThemePack theme) => BlogGuides.Load(SharedRoot, theme);
+
     private static string StripLeadingComment(string text) =>
         System.Text.RegularExpressions.Regex.Replace(text, @"^\s*<!--.*?-->\s*", "",
             System.Text.RegularExpressions.RegexOptions.Singleline).Trim();

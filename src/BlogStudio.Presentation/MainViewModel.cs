@@ -880,6 +880,9 @@ public sealed partial class MainViewModel : ObservableObject
         return list;
     }
 
+    /// <summary>블로그 준비 가이드 창에 넘길 문서 (지금 테마 기준).</summary>
+    public IReadOnlyList<BlogGuide> LoadGuides() => _themes.LoadGuides(_theme ?? _themes.Load(_settings.ThemeSlug));
+
     public BlogStats BuildStats() => BlogStats.From(_store.LoadState().History, _today(), TrackLabel);
 
     private void LoadCategories()

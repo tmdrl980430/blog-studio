@@ -26,6 +26,8 @@
                         Click="OpenStats_Click" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <Button DockPanel.Dock="Right" Content="주제 관리" Style="{StaticResource SecondaryButton}"
                         Click="OpenTopics_Click" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <Button DockPanel.Dock="Right" Content="블로그 준비" ToolTip="네이버·티스토리 개설·꾸미기 가이드와 복사용 CSS" Style="{StaticResource SecondaryButton}"
+                        Click="OpenGuides_Click" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <!-- 새 버전 알림 (GitHub Releases) -->
                 <Border DockPanel.Dock="Right" Background="{StaticResource AccentSoft}" CornerRadius="8" Padding="12,4,4,4"
                         Margin="0,0,10,0" VerticalAlignment="Center"
