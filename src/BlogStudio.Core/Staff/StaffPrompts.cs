@@ -6,8 +6,8 @@ using BlogStudio.Core.Themes;
 
 namespace BlogStudio.Core.Staff;
 
-/// <summary>기획자가 낸 주제 후보 하나.</summary>
-public sealed record TopicIdea(string Topic, string Keyword, string Reason)
+/// <summary>기획자가 낸 주제 후보 하나. Category는 카테고리 목록 안의 값("상위 > 하위") 또는 "" (트랙 기본값을 씀).</summary>
+public sealed record TopicIdea(string Topic, string Keyword, string Reason, string Category = "")
 {
     public string Label => string.IsNullOrWhiteSpace(Keyword) ? Topic : $"{Topic}  ·  {Keyword}";
 }
@@ -31,17 +31,22 @@ public static class StaffPrompts
     public const string Publishable = "발행 가능", NeedsEdit = "수정 후 발행", Rewrite = "다시 쓰기";
 
     private const string FallbackPlanner =
-        "당신은 한국어 블로그의 주제 기획자입니다. 검색될 만한 주제 5개를 \"주제 | 핵심 검색 키워드 | 이유\" 형식으로 한 줄에 하나씩만 출력합니다.";
+        "당신은 한국어 블로그의 주제 기획자입니다. 검색될 만한 주제 5개를 \"주제 | 핵심 검색 키워드 | 이유 | 카테고리\" 형식으로 한 줄에 하나씩만 출력합니다. 카테고리는 [카테고리 목록]에서 그대로 하나 고릅니다.";
 
     private const string FallbackEditor =
         "당신은 한국어 블로그 글의 편집자입니다. 첫 줄에 \"판정: 발행 가능 | 수정 후 발행 | 다시 쓰기\" 중 하나, 다음 줄부터 \"- 고칠 점\"을 최대 7개 출력합니다.";
 
     private static readonly Regex ListMark = new(@"^(\d+[.)]\s*|[-*•]\s*)");
 
-    /// <summary>기획자: 트랙 안에서 오늘 쓸 주제 후보. 이전 글 제목은 최근 15편만 보낸다.</summary>
+    /// <summary>
+    /// 기획자: 트랙 안에서 오늘 쓸 주제 후보. 이전 글 제목은 최근 15편만 보낸다.
+    /// 카테고리 목록(없으면 기본 체계)과 트랙 기본 카테고리를 함께 보내 주제마다 하나를 고르게 한다 (이슈 #19).
+    /// </summary>
     public static PromptPair BuildTopicIdeas(string staffPrompt, ThemePack theme, Track track,
-        IEnumerable<HistoryEntry> history, string? hint = null)
+        IEnumerable<HistoryEntry> history, string? hint = null, IReadOnlyList<BlogCategory>? categories = null)
     {
+        categories ??= BlogCategories.Default;
+        var trackDefault = BlogCategories.ForTrack(track.Key, categories);
         var recent = history.Where(h => h.TrackKey == track.Key)
             .OrderByDescending(h => h.Date)
             .Take(PromptBuilder.HistoryLimit)
@@ -56,21 +61,28 @@ public static class StaffPrompts
             .Append("\n\n[트랙의 기본 주제 목록 (참고, 그대로 베끼지 않음)]\n")
             .Append(upcoming.Count > 0 ? string.Join("\n", upcoming) : "(없음)")
             .Append("\n\n[이전 글]\n")
-            .Append(recent.Count > 0 ? string.Join("\n", recent) : "(없음 — 첫 글)");
+            .Append(recent.Count > 0 ? string.Join("\n", recent) : "(없음 — 첫 글)")
+            .Append("\n\n[카테고리 목록]\n")
+            .Append(string.Join("\n", categories.Select(c => "- " + c)))
+            .Append("\n[이 트랙 기본 카테고리] ").Append(trackDefault?.ToString() ?? "(없음 — 목록에서 가장 가까운 것)");
         if (!string.IsNullOrWhiteSpace(hint))
             user.Append("\n\n[요청] ").Append(hint.Trim());
 
         return new PromptPair(string.IsNullOrWhiteSpace(staffPrompt) ? FallbackPlanner : staffPrompt, user.ToString());
     }
 
-    /// <summary>"주제 | 키워드 | 이유" 줄을 읽는다. 번호·따옴표 제거, 너무 긴 주제 제외, 중복 제거, 최대 5개.</summary>
-    public static IReadOnlyList<TopicIdea> ParseTopicIdeas(string response) =>
+    /// <summary>
+    /// "주제 | 키워드 | 이유 | 카테고리" 줄을 읽는다. 번호·따옴표 제거, 너무 긴 주제 제외, 중복 제거, 최대 5개.
+    /// 카테고리는 목록(없으면 기본 체계) 안의 것으로 맞추고, 목록에 없으면 ""(새로 만들지 않음).
+    /// </summary>
+    public static IReadOnlyList<TopicIdea> ParseTopicIdeas(string response, IReadOnlyList<BlogCategory>? categories = null) =>
         response.Split('\n')
             .Select(l => ListMark.Replace(l.Trim(), "").Trim())
             .Where(l => l.Length > 0 && !l.StartsWith("주제 |", StringComparison.Ordinal))
             .Select(l => l.Split('|').Select(p => p.Trim().Trim('"', '“', '”', '\'').Trim()).ToArray())
             .Where(p => p[0].Length is > 0 and <= TopicMax)
-            .Select(p => new TopicIdea(p[0], p.Length > 1 ? p[1] : "", p.Length > 2 ? p[2] : ""))
+            .Select(p => new TopicIdea(p[0], p.Length > 1 ? p[1] : "", p.Length > 2 ? p[2] : "",
+                p.Length > 3 ? BlogCategories.Match(p[3], categories)?.ToString() ?? "" : ""))
             .DistinctBy(i => i.Topic)
             .Take(IdeaCount)
             .ToList();
