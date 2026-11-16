@@ -10,6 +10,8 @@ public partial class AutoFillWindow : Window
     private readonly IClipboardService _clipboard;
     private AutoFillRunner? _runner;
     private CancellationTokenSource? _cts;
+    private string _diagnostics = "";
+    private static readonly System.Net.Http.HttpClient Http = new();
 
     public AutoFillWindow(AutoFillPayload post, IClipboardService clipboard)
     {
@@ -44,7 +46,13 @@ public partial class AutoFillWindow : Window
             RunAllButton.IsEnabled = false;
             return;
         }
-        _runner = new AutoFillRunner(Web.CoreWebView2, _clipboard, _post, Write, () => Web.Focus());
+        var data = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlogStudio");
+        _diagnostics = System.IO.Path.Combine(data, "autofill-logs");
+        var script = await BlogStudio.Core.AutoFill.AutoFillScriptSource.LoadAsync(
+            System.IO.Path.Combine(BlogStudio.Core.Themes.ThemeRepository.LocateSharedRoot(), "autofill", "autofill.js"),
+            System.IO.Path.Combine(data, "autofill", "autofill.js"), Http);
+        Write($"채우기 규칙 v{script.Version} ({script.Source})");
+        _runner = new AutoFillRunner(Web.CoreWebView2, _clipboard, _post, Write, () => Web.Focus(), script.Text, _diagnostics);
         // 새 창(팝업) 요청은 같은 화면에서 연다 (카카오·네이버 로그인 창 등)
         Web.CoreWebView2.NewWindowRequested += (_, e) => { e.Handled = true; Web.CoreWebView2.Navigate(e.Uri); };
         Web.CoreWebView2.Navigate(_post.WriteUrl);
@@ -73,6 +81,8 @@ public partial class AutoFillWindow : Window
         catch (Exception ex)
         {
             Write("문제가 생겼어요: " + ex.Message + " — 남은 부분은 직접 붙여넣어 주세요");
+            if (_runner is not null && await _runner.SaveDiagnosticsAsync("error") is not null)
+                Write("진단 기록을 남겼어요 — '진단 기록 열기'로 볼 수 있어요");
         }
         finally
         {
@@ -93,6 +103,13 @@ public partial class AutoFillWindow : Window
     private async void Images_Click(object sender, RoutedEventArgs e) => await RunAsync((r, ct) => r.FillImagesAsync(ct));
     private async void Tags_Click(object sender, RoutedEventArgs e) => await RunAsync((r, _) => r.FillTagsAsync());
     private void Cancel_Click(object sender, RoutedEventArgs e) => _cts?.Cancel();
+
+    private void Diagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        var target = _runner?.LastDiagnostics ?? _diagnostics;
+        System.IO.Directory.CreateDirectory(target);
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target) { UseShellExecute = true });
+    }
 
     private void Reload_Click(object sender, RoutedEventArgs e)
     {

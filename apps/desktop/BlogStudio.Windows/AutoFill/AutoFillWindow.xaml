@@ -38,6 +38,7 @@
                 </WrapPanel>
                 <WrapPanel Margin="0,4,0,0">
                     <Button Content="글쓰기 화면 다시 열기" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Reload_Click" />
+                    <Button Content="진단 기록 열기" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Diagnostics_Click" />
                     <Button x:Name="CancelButton" Content="멈추기" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6" Click="Cancel_Click" IsEnabled="False" />
                 </WrapPanel>
                 <ProgressBar x:Name="Busy" IsIndeterminate="True" Height="3" Margin="0,8,0,0" Visibility="Collapsed" />
