@@ -11,7 +11,7 @@ public sealed record AutoFillScript(string Text, int Version, string Source);
 public static class AutoFillScriptSource
 {
     /// <summary>앱이 부르는 window.__bs 함수 묶음의 버전. 스크립트의 api와 같아야 쓴다.</summary>
-    public const int Api = 2;
+    public const int Api = 3;   // 3: 자동 발행(publishPoint·publishTagsPoint·published) 추가
 
     public const string RemoteUrl =
         "https://raw.githubusercontent.com/tmdrl980430/blog-studio/main/shared/autofill/autofill.js";

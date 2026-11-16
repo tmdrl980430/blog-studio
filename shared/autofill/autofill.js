@@ -1,7 +1,8 @@
 // Blog Studio 자동 채우기 — 블로그 글쓰기 화면 안에서 실행되는 도우미.
 // 앱(WebView2)이 이 스크립트를 넣고 window.__bs.* 를 호출한다.
 // 클릭·붙여넣기·타이핑은 앱이 진짜 입력(DevTools Input 이벤트)으로 보내고,
-// 이 스크립트는 "어디를 눌러야 하는지" 위치만 찾아 준다. 발행 버튼은 절대 누르지 않는다.
+// 이 스크립트는 "어디를 눌러야 하는지" 위치만 찾아 준다. 스스로 클릭하지 않는다.
+// 발행 버튼 위치(publishPoint)는 설정에서 '자동 발행'을 켠 경우에만 앱이 사용한다.
 //
 // 에디터 화면이 바뀌어 못 찾으면 아래 SELECTORS 만 고치고 version 을 올려 main 에 머지하면 된다.
 // 앱은 자동 채우기 창을 열 때 GitHub main 의 이 파일을 받아 쓴다 (api 가 같고 version 이 더 클 때만).
@@ -22,6 +23,16 @@
       blocking: ['.se-popup-alert-confirm', '.se-popup-container .se-popup-alert'],
     },
   };
+
+  // 발행 단계별 버튼 글자 (선택자보다 글자가 덜 바뀌어서 글자로 찾는다). 앞쪽이 우선.
+  const PUBLISH_TEXT = {
+    naver: { open: ['발행'], confirm: ['발행'] },
+    tistory: { open: ['완료'], public: ['공개'], confirm: ['공개 발행', '발행'] },
+  };
+  // 발행 창 안 태그 칸 (네이버는 태그를 발행 창에서 넣는다)
+  const PUBLISH_TAGS = ['input[placeholder*="태그"]', 'input[class*="tag_input"]'];
+  // 아직 글쓰기 화면인지 (발행이 끝나면 글 보기 주소로 바뀐다)
+  const WRITE_URL = /postwrite|PostWriteForm|Redirect=Write|\/manage\/newpost/i;
 
   const platform = () => (/naver\.com$/.test(location.hostname) ? 'naver' : 'tistory');
 
@@ -97,9 +108,22 @@
     sel.addRange(range);
   }
 
+  const label = el => (el.innerText || el.value || el.textContent || '').replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
+
+  // 글자가 정확히 같은 눌러도 되는 요소들 (DOM 순서)
+  function byText(text) {
+    const out = [];
+    for (const d of docs()) {
+      for (const el of d.querySelectorAll('button, a[role="button"], label, [role="button"], input[type="button"], input[type="submit"]')) {
+        if (visible(el) && !el.disabled && label(el) === text) out.push(el);
+      }
+    }
+    return out;
+  }
+
   window.__bs = {
-    api: 2,
-    version: 2,
+    api: 3,
+    version: 1,
     platform,
 
     state() {
@@ -222,6 +246,34 @@
         }));
       }
       return out;
+    },
+
+    // 발행 단계 위치: 'open'(발행 창 열기) → 'public'(티스토리 공개 선택) → 'confirm'(최종 발행)
+    publishPoint(step) {
+      const texts = (PUBLISH_TEXT[platform()] || {})[step] || [];
+      for (const text of texts) {
+        const found = byText(text);
+        if (found.length === 0) continue;
+        if (step === 'confirm' && platform() === 'naver') {
+          // 머리글의 '발행'과 발행 창의 '발행'이 같은 글자 → 발행 창 쪽(confirm 클래스, 없으면 나중 것)
+          const confirm = found.find(el => /confirm/i.test(el.className || ''));
+          if (confirm) return point(confirm);
+          if (found.length < 2) return null;   // 발행 창이 안 열렸음
+          return point(found[found.length - 1]);
+        }
+        return point(found[0]);
+      }
+      return null;
+    },
+
+    publishTagsPoint() {
+      const el = find(PUBLISH_TAGS);
+      return el ? point(el) : null;
+    },
+
+    // 글쓰기 화면을 벗어났으면 발행된 것으로 본다
+    published() {
+      return !docs().some(d => { try { return WRITE_URL.test(d.location.href); } catch { return false; } }) && !tinymceEditor();
     },
 
     tagsPoint() {

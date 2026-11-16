@@ -31,6 +31,23 @@ public static class PostChecker
     public static int TextLength(string markdown) =>
         Markup.Replace(markdown, m => m.Groups[1].Success ? m.Groups[1].Value : "").Count(c => !char.IsWhiteSpace(c));
 
+    /// <summary>
+    /// 사람이 보지 않고 발행하면 안 되는 문제만 (자동 발행 기준). 비어 있으면 발행해도 됨.
+    /// 제목 길이·태그 수처럼 검색에만 영향을 주는 것은 막지 않는다.
+    /// </summary>
+    public static IReadOnlyList<string> BlockingIssues(PostDraft post)
+    {
+        var list = new List<string>();
+        if (string.IsNullOrWhiteSpace(post.Title)) list.Add("제목 없음");
+        var unknown = NeedsCheck.Matches(post.BodyMarkdown).Count + NeedsCheck.Matches(post.Title).Count;
+        if (unknown > 0) list.Add($"'(확인 필요)' {unknown}곳");
+        var leftovers = Leftovers.Matches(post.BodyMarkdown).Count;
+        if (leftovers > 0) list.Add($"처리 안 된 사진·그림 자리 {leftovers}곳");
+        var len = TextLength(post.BodyMarkdown);
+        if (len < BodyMin / 2) list.Add($"본문 {len:N0}자 (너무 짧음)");
+        return list;
+    }
+
     public static IReadOnlyList<CheckItem> Check(PostDraft post)
     {
         var list = new List<CheckItem>();

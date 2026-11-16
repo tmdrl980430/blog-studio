@@ -58,6 +58,15 @@ public sealed class AppSettings
     /// <summary>켜면 매일 DailyTime에 앱이 열려 오늘의 기술 글을 만든다 (Windows 작업 스케줄러).</summary>
     public bool DailyAutoEnabled { get; set; }
     public string DailyTime { get; set; } = "07:30";
+
+    // ── 자동 발행 (매일 자동 작성 다음 단계) ──
+    /// <summary>
+    /// 켜면 매일 자동 작성 후 편집자 검수 → 의견 반영 → 발행 기준을 통과한 글을 앱 안 브라우저로 발행까지 한다.
+    /// 공식 글쓰기 API가 없어 화면을 대신 조작하므로 기본은 꺼 둔다.
+    /// </summary>
+    public bool AutoPublishEnabled { get; set; }
+    public bool AutoPublishNaver { get; set; } = true;
+    public bool AutoPublishTistory { get; set; } = true;
 }
 
 /// <summary>API 키 같은 비밀 값을 디스크에 쓸 때 암호화 (Windows: DPAPI, Mac: 키체인 예정).</summary>

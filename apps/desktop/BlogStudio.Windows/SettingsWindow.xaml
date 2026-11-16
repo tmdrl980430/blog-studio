@@ -69,7 +69,18 @@
                     </StackPanel>
                     <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="22,0,0,0">
                         그 시각에 앱이 열려 글을 만들어 둡니다. PC가 꺼져 있었으면 켠 뒤에 만들고, 오늘 글이 이미 있으면 건너뜁니다.
-                        올리기는 직접 확인한 뒤 자동 채우기로.
+                        만든 뒤에는 AI 편집자가 검수하고 의견을 한 번 반영해요.
+                    </TextBlock>
+
+                    <CheckBox Content="검수를 통과한 글은 자동으로 발행" IsChecked="{Binding AutoPublishEnabled}" Margin="0,12,0,6" />
+                    <StackPanel Orientation="Horizontal" Margin="22,0,0,4">
+                        <CheckBox Content="티스토리" IsChecked="{Binding AutoPublishTistory}" IsEnabled="{Binding AutoPublishEnabled}" Margin="0,0,16,0" />
+                        <CheckBox Content="네이버 블로그" IsChecked="{Binding AutoPublishNaver}" IsEnabled="{Binding AutoPublishEnabled}" />
+                    </StackPanel>
+                    <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="22,0,0,0">
+                        편집자가 '다시 쓰기'로 판정했거나 '(확인 필요)'·코드 오류·빈 사진 자리가 남은 글은 발행하지 않고 보류해요.
+                        공식 글쓰기 API가 없어 앱 안 브라우저가 화면을 대신 눌러요. 자동 채우기 창에서 두 블로그에 한 번 로그인해 두세요.
+                        결과는 데이터 폴더의 auto-log.txt에 남아요.
                     </TextBlock>
                 </StackPanel>
 

@@ -31,6 +31,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         _codeCheckEnabled = _settings.CodeCheckEnabled;
         _dailyAutoEnabled = _settings.DailyAutoEnabled;
         _dailyTime = string.IsNullOrWhiteSpace(_settings.DailyTime) ? "07:30" : _settings.DailyTime;
+        _autoPublishEnabled = _settings.AutoPublishEnabled;
+        _autoPublishNaver = _settings.AutoPublishNaver;
+        _autoPublishTistory = _settings.AutoPublishTistory;
         _openAiImageQuality = string.IsNullOrWhiteSpace(_settings.OpenAiImageQuality) ? "low" : _settings.OpenAiImageQuality;
         PexelsKeyStatus = Mask(store.Reveal(_settings.PexelsApiKey));
         OpenAiKeyStatus = Mask(store.Reveal(_settings.OpenAiApiKey));
@@ -38,6 +41,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>이 기기에서 매일 자동 작성을 쓸 수 있는지 (Windows만).</summary>
     public bool CanScheduleDaily => _scheduler is not null;
+
+    [ObservableProperty] private bool _autoPublishEnabled;
+    [ObservableProperty] private bool _autoPublishNaver;
+    [ObservableProperty] private bool _autoPublishTistory;
 
     [ObservableProperty] private string _styleSample = "";
     [ObservableProperty] private bool _codeCheckEnabled;
@@ -138,6 +145,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         _settings.CodeCheckEnabled = CodeCheckEnabled;
         _settings.DailyAutoEnabled = DailyAutoEnabled && _scheduler is not null;
         _settings.DailyTime = time.ToString("HH:mm");
+        _settings.AutoPublishEnabled = AutoPublishEnabled;
+        _settings.AutoPublishNaver = AutoPublishNaver;
+        _settings.AutoPublishTistory = AutoPublishTistory;
         _settings.Author = Author.Trim();
         _settings.NaverBlogId = NaverBlogId.Trim();
         _settings.TistoryName = TistoryName.Trim();
