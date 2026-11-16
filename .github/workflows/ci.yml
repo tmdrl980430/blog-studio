@@ -52,3 +52,20 @@ jobs:
           dotnet tool install -g vpk --version 1.2.161
           vpk pack -u BlogStudio -v 0.0.1 -p publish/vpk-src -e BlogStudio.exe --packTitle "Blog Studio" -o publish/releases
           ls publish/releases
+
+  web:
+    name: 웹 테스트 · 빌드
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
