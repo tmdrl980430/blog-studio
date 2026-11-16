@@ -56,6 +56,57 @@ public class StaffTests
     }
 
     [Fact]
+    public void Planner_prompt_asks_for_category_as_fourth_column()
+    {
+        var planner = Fixtures.Themes().LoadStaffPrompt("planner");
+        var format = planner.Split('\n').Select(l => l.Trim()).Last(l => l.Length > 0);
+        var columns = format.Split('|').Select(c => c.Trim()).ToArray();
+        Assert.Equal(4, columns.Length);
+        Assert.Equal("주제", columns[0]);
+        Assert.Equal("카테고리", columns[3]);
+        Assert.Contains("[카테고리 목록]", planner);
+        Assert.Contains("[이 트랙 기본 카테고리]", planner);
+    }
+
+    [Fact]
+    public void Topic_ideas_prompt_lists_categories_and_track_default()
+    {
+        var theme = Fixtures.Themes().Load("tech");
+        var track = theme.Curriculum["algorithm"];
+        var p = StaffPrompts.BuildTopicIdeas("", theme, track, Array.Empty<HistoryEntry>());
+        Assert.Contains("[카테고리 목록]\n- 개발 > 알고리즘·코테\n- 개발 > CS 기초", p.User);
+        Assert.Contains("[이 트랙 기본 카테고리] 개발 > 알고리즘·코테", p.User);
+        Assert.Contains("카테고리", p.System);   // 지시문 파일이 없어도 카테고리를 고르게 함
+
+        var custom = BlogCategories.FromLines(new[] { "공부 > 코테" });
+        var q = StaffPrompts.BuildTopicIdeas("", theme, track, Array.Empty<HistoryEntry>(), null, custom);
+        Assert.Contains("- 공부 > 코테", q.User);
+        Assert.DoesNotContain("CS 기초", q.User);
+        Assert.Contains("[이 트랙 기본 카테고리] (없음", q.User);   // 목록에서 지운 트랙 기본값은 쓰지 않음
+    }
+
+    [Fact]
+    public void Parses_topic_idea_category_only_from_the_list()
+    {
+        var ideas = StaffPrompts.ParseTopicIdeas("""
+            주제 | 핵심 검색 키워드 | 이유 | 카테고리
+            파이썬 deque와 list 속도 차이 | 파이썬 deque | 지난 BFS 글 다음 단계 | 개발 > 알고리즘·코테
+            TCP 혼잡 제어 정리 | TCP 혼잡 제어 | 면접 단골 | CS 기초
+            블록체인 입문 | 블록체인 | 요즘 관심 | 개발 > 블록체인
+            다익스트라 구현 | 다익스트라 | 코테 단골
+            """);
+        Assert.Equal(4, ideas.Count);
+        Assert.Equal("개발 > 알고리즘·코테", ideas[0].Category);
+        Assert.Equal("개발 > CS 기초", ideas[1].Category);   // 하위 이름만 와도 맞춤
+        Assert.Equal("", ideas[2].Category);                 // 목록에 없으면 만들지 않음 → 트랙 기본값
+        Assert.Equal("", ideas[3].Category);                 // 예전 3칸 형식도 그대로 읽음
+
+        var custom = BlogCategories.FromLines(new[] { "공부 > 코테" });
+        Assert.Equal("공부 > 코테", StaffPrompts.ParseTopicIdeas("주제 A | 키 | 이유 | 코테", custom)[0].Category);
+        Assert.Equal("", StaffPrompts.ParseTopicIdeas("주제 A | 키 | 이유 | 개발 > CS 기초", custom)[0].Category);
+    }
+
+    [Fact]
     public void Editor_prompt_fills_author()
     {
         var p = StaffPrompts.BuildEditorReview("{author}의 글을 검수", "---\ntitle: x\n---\n본문", "승기");

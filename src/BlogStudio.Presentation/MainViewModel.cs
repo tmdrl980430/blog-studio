@@ -459,6 +459,7 @@ public sealed partial class MainViewModel : ObservableObject
     private string _editorPrompt = "";
     private bool _plannerPicked;
     private string _pickedKeyword = "";
+    private string _pickedCategory = "";
 
     public ObservableCollection<TopicIdea> TopicIdeas { get; } = new();
 
@@ -473,10 +474,12 @@ public sealed partial class MainViewModel : ObservableObject
         StatusText = "기획자가 주제를 고르는 중…";
         try
         {
-            var p = StaffPrompts.BuildTopicIdeas(_plannerPrompt, theme, _plan.Track, _store.LoadState().History, ExtraRequest);
+            var categories = BlogCategories.FromLines(_settings.Categories);
+            var p = StaffPrompts.BuildTopicIdeas(_plannerPrompt, theme, _plan.Track, _store.LoadState().History, ExtraRequest,
+                categories);
             var result = await _provider.GenerateAsync(new AiRequest(p.System, p.User, "light", "haiku"), ct);
             TopicIdeas.Clear();
-            foreach (var idea in StaffPrompts.ParseTopicIdeas(result.Text)) TopicIdeas.Add(idea);
+            foreach (var idea in StaffPrompts.ParseTopicIdeas(result.Text, categories)) TopicIdeas.Add(idea);
             StatusText = TopicIdeas.Count > 0 ? "기획자 추천 주제를 눌러 오늘 주제로 정하세요" : "기획자가 주제를 내지 못했어요";
         }
         catch (OperationCanceledException)
@@ -501,10 +504,12 @@ public sealed partial class MainViewModel : ObservableObject
         _plan = _plan with { Topic = idea.Topic };
         _plannerPicked = true;
         _pickedKeyword = idea.Keyword;
+        _pickedCategory = idea.Category;
         TopicTitle = idea.Topic;
         TrackName = $"{_plan.Track.Name} · 기획자 추천";
         TopicIdeas.Clear();
-        StatusText = "오늘 주제를 바꿨어요 — 글 생성하기를 누르면 작가가 써요";
+        StatusText = "오늘 주제를 바꿨어요" + (idea.Category.Length > 0 ? $" (카테고리 {idea.Category})" : "")
+            + " — 글 생성하기를 누르면 작가가 써요";
     }
 
     // ── AI 직원: 편집자 (발행 전 검수) ──
@@ -924,6 +929,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_theme is null) return;
         _plannerPicked = false;
         _pickedKeyword = "";
+        _pickedCategory = "";
         TopicIdeas.Clear();
         var today = _today();
         if (IsMemoCategory && _life is not null)
@@ -984,8 +990,10 @@ public sealed partial class MainViewModel : ObservableObject
                 : _plan.Topic ?? "(자동 선정)";
             var post = PostParser.Parse(result.Text, topicLabel, _plan.Track.Key, _today());
             if (!fromMemo && _plan.Topic is null) post = post with { Topic = post.Title };
-            post = post with { Category = BlogCategories.Resolve(post.Category, post.TrackKey,
-                BlogCategories.FromLines(_settings.Categories)) };
+            // 기획자가 고른 카테고리 > 작가가 적은 카테고리 > 트랙 기본값 (목록에 없으면 다음 순서로)
+            var categories = BlogCategories.FromLines(_settings.Categories);
+            var written = !fromMemo && BlogCategories.Match(_pickedCategory, categories) is not null ? _pickedCategory : post.Category;
+            post = post with { Category = BlogCategories.Resolve(written, post.TrackKey, categories) };
 
             StatusText = "이미지 만드는 중… (썸네일·그림·사진)";
             var folder = _store.CreatePostFolder(post);
