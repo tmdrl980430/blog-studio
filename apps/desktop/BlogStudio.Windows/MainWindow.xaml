@@ -6,10 +6,6 @@
         WindowStartupLocation="CenterScreen"
         FontFamily="{StaticResource UiFont}" Background="{StaticResource Ground}"
         Foreground="{StaticResource Ink}">
-    <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVis" />
-    </Window.Resources>
-
     <DockPanel>
         <!-- 상단 바 -->
         <Border DockPanel.Dock="Top" Height="48" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
