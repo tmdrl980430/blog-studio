@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.RegularExpressions;
 using BlogStudio.Core.Rendering;
 
@@ -32,10 +31,14 @@ public sealed record BlogGuide(string Key, string Title, string Markdown, IReadO
           h1.title{font-size:22px;line-height:1.4;margin:0 0 18px}
         </style></head>
         <body><div class="wrap">
-          <h1 class="title">{{WebUtility.HtmlEncode(Title)}}</h1>
+          <h1 class="title">{{Escape(Title)}}</h1>
           {{BlogHtmlRenderer.ToBlogHtml(Markdown)}}
         </div></body></html>
         """;
+
+    // WebUtility.HtmlEncode는 '·'(U+00B7) 같은 문자를 &#183;로 바꿔 버려 제목 검색·복사가 어긋난다 → 꼭 필요한 문자만 바꾼다
+    private static string Escape(string s) =>
+        s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
 }
 
 /// <summary>
