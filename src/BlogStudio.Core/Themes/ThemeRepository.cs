@@ -69,10 +69,16 @@ public sealed class ThemeRepository
     }
 
     /// <summary>shared/prompts/base.md — 모든 테마 공통 규칙(맨 앞 HTML 주석은 제거).</summary>
-    public string LoadBasePrompt()
+    public string LoadBasePrompt() => StripLeadingComment(File.ReadAllText(Path.Combine(SharedRoot, "prompts", "base.md")));
+
+    /// <summary>shared/staff/&lt;name&gt;.md — 앱 안 AI 직원(기획자·편집자) 지시문. 파일이 없으면 빈 문자열.</summary>
+    public string LoadStaffPrompt(string name)
     {
-        var text = File.ReadAllText(Path.Combine(SharedRoot, "prompts", "base.md"));
-        return System.Text.RegularExpressions.Regex.Replace(text, @"^\s*<!--.*?-->\s*", "",
-            System.Text.RegularExpressions.RegexOptions.Singleline).Trim();
+        var path = Path.Combine(SharedRoot, "staff", name + ".md");
+        return File.Exists(path) ? StripLeadingComment(File.ReadAllText(path)) : "";
     }
+
+    private static string StripLeadingComment(string text) =>
+        System.Text.RegularExpressions.Regex.Replace(text, @"^\s*<!--.*?-->\s*", "",
+            System.Text.RegularExpressions.RegexOptions.Singleline).Trim();
 }

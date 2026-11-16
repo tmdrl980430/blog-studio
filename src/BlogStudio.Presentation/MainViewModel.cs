@@ -10,6 +10,7 @@ using BlogStudio.Core.Prompting;
 using BlogStudio.Core.Rendering;
 using BlogStudio.Core.Review;
 using BlogStudio.Core.Scheduling;
+using BlogStudio.Core.Staff;
 using BlogStudio.Core.Storage;
 using BlogStudio.Core.Themes;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -256,12 +257,13 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(CopyMarkdownCommand), nameof(CopyTitleAndTagsCommand),
         nameof(ShowRenderedCommand), nameof(ShowMarkdownCommand), nameof(OpenPreviewInBrowserCommand),
         nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand),
-        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand))]
+        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand), nameof(ReviewWithEditorCommand), nameof(ApplyEditorNotesCommand))]
     private bool _postReady;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GenerateCommand), nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand),
-        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand))]
+        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand), nameof(AskPlannerCommand), nameof(ReviewWithEditorCommand),
+        nameof(ApplyEditorNotesCommand))]
     private bool _isGenerating;
 
     // ── 발행 전 점검 ──
@@ -328,7 +330,8 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void CancelWork()
     {
-        foreach (var cancel in new[] { GenerateCancelCommand, ReviseCancelCommand, MakeInstaCardsCancelCommand, SuggestTitlesCancelCommand })
+        foreach (var cancel in new[] { GenerateCancelCommand, ReviseCancelCommand, MakeInstaCardsCancelCommand, SuggestTitlesCancelCommand,
+                     AskPlannerCancelCommand, ReviewWithEditorCancelCommand })
             if (cancel.CanExecute(null)) cancel.Execute(null);
     }
 
@@ -381,6 +384,130 @@ public sealed partial class MainViewModel : ObservableObject
     {
         RevisionRequest = "아래 파이썬 코드 실행 오류를 고쳐 주세요. 코드와 그 코드를 설명하는 문장만 고치고 나머지는 그대로 둡니다.\n" +
                           string.Join("\n", _codeErrors.Select(e => $"- 글의 {e.Number}번째 파이썬 코드 블록: {e.Message}"));
+        await ReviseCommand.ExecuteAsync(null);
+    }
+
+    // ── AI 직원: 기획자 (주제 후보) ──
+    private string _plannerPrompt = "";
+    private string _editorPrompt = "";
+    private bool _plannerPicked;
+    private string _pickedKeyword = "";
+
+    public ObservableCollection<TopicIdea> TopicIdeas { get; } = new();
+
+    private bool CanAskPlanner() => !IsGenerating && _plan is not null;
+
+    [RelayCommand(CanExecute = nameof(CanAskPlanner), IncludeCancelCommand = true)]
+    private async Task AskPlannerAsync(CancellationToken ct)
+    {
+        var theme = ActiveTheme;
+        if (theme is null || _plan is null) return;
+        IsGenerating = true;
+        StatusText = "기획자가 주제를 고르는 중…";
+        try
+        {
+            var p = StaffPrompts.BuildTopicIdeas(_plannerPrompt, theme, _plan.Track, _store.LoadState().History, ExtraRequest);
+            var result = await _provider.GenerateAsync(new AiRequest(p.System, p.User, "light", "haiku"), ct);
+            TopicIdeas.Clear();
+            foreach (var idea in StaffPrompts.ParseTopicIdeas(result.Text)) TopicIdeas.Add(idea);
+            StatusText = TopicIdeas.Count > 0 ? "기획자 추천 주제를 눌러 오늘 주제로 정하세요" : "기획자가 주제를 내지 못했어요";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "주제 추천을 취소했어요";
+        }
+        catch (AiProviderException ex)
+        {
+            StatusText = "주제 추천 실패: " + ex.Message;
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
+
+    /// <summary>기획자 후보를 오늘 주제로. 커리큘럼 순서는 그대로 두고 이번 한 편만 바꾼다.</summary>
+    [RelayCommand]
+    private void PickTopicIdea(TopicIdea? idea)
+    {
+        if (idea is null || _plan is null) return;
+        _plan = _plan with { Topic = idea.Topic };
+        _plannerPicked = true;
+        _pickedKeyword = idea.Keyword;
+        TopicTitle = idea.Topic;
+        TrackName = $"{_plan.Track.Name} · 기획자 추천";
+        TopicIdeas.Clear();
+        StatusText = "오늘 주제를 바꿨어요 — 글 생성하기를 누르면 작가가 써요";
+    }
+
+    // ── AI 직원: 편집자 (발행 전 검수) ──
+    public ObservableCollection<string> EditorNotes { get; } = new();
+    [ObservableProperty] private string _editorVerdict = "";
+    [ObservableProperty] private bool _hasEditorReview;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplyEditorNotesCommand))]
+    private bool _hasEditorNotes;
+
+    private EditorReview? _review;
+
+    private void ClearEditorReview()
+    {
+        _review = null;
+        EditorNotes.Clear();
+        EditorVerdict = "";
+        HasEditorReview = false;
+        HasEditorNotes = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRevise_NoRequest), IncludeCancelCommand = true)]
+    private async Task ReviewWithEditorAsync(CancellationToken ct)
+    {
+        if (_post is null) return;
+        IsGenerating = true;
+        StatusText = "편집자가 검수하는 중… (1분 안팎)";
+        try
+        {
+            var p = StaffPrompts.BuildEditorReview(_editorPrompt, LocalStore.ToFileText(_post), _settings.Author);
+            var model = string.IsNullOrWhiteSpace(_settings.ClaudeModel) ? null : _settings.ClaudeModel;
+            var result = await _provider.GenerateAsync(new AiRequest(p.System, p.User, "main", model), ct);
+            ShowEditorReview(StaffPrompts.ParseEditorReview(result.Text));
+            StatusText = _review!.NeedsFix
+                ? $"편집자 의견 {_review.Notes.Count}개 — \"의견대로 고치기\"로 반영할 수 있어요"
+                : "편집자: 발행해도 좋아요";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "검수를 취소했어요";
+        }
+        catch (AiProviderException ex)
+        {
+            StatusText = "검수 실패: " + ex.Message;
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
+
+    private void ShowEditorReview(EditorReview review)
+    {
+        _review = review;
+        EditorNotes.Clear();
+        foreach (var n in review.Notes) EditorNotes.Add(n);
+        EditorVerdict = $"편집자 판정 · {review.Verdict}";
+        HasEditorReview = true;
+        HasEditorNotes = review.NeedsFix;
+    }
+
+    private bool CanApplyEditorNotes() => HasEditorNotes && CanRevise_NoRequest();
+
+    /// <summary>편집자 의견을 고칠 점으로 넘겨 "Claude로 고치기"를 실행한다.</summary>
+    [RelayCommand(CanExecute = nameof(CanApplyEditorNotes))]
+    private async Task ApplyEditorNotesAsync()
+    {
+        if (_review is not { NeedsFix: true }) return;
+        RevisionRequest = StaffPrompts.RevisionFromReview(_review);
         await ReviseCommand.ExecuteAsync(null);
     }
 
@@ -478,7 +605,7 @@ public sealed partial class MainViewModel : ObservableObject
     // ── 직접 편집 ──
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand),
-        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand))]
+        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand), nameof(ReviewWithEditorCommand), nameof(ApplyEditorNotesCommand))]
     private bool _isEditing;
 
     [ObservableProperty] private string _editTitle = "";
@@ -534,6 +661,8 @@ public sealed partial class MainViewModel : ObservableObject
         _theme = _themes.Load(_settings.ThemeSlug);
         _store.ApplyTopicQueues(_theme);
         _prompts = new PromptBuilder(_themes.LoadBasePrompt());
+        _plannerPrompt = _themes.LoadStaffPrompt("planner");
+        _editorPrompt = _themes.LoadStaffPrompt("editor");
         ThemeName = _theme.Name;
         LoadCategories();
         RefreshHistory();
@@ -717,11 +846,15 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var next in track.Topics.Skip(index + 1).Take(3))
             UpcomingTopics.Add(new UpcomingTopicItem($"{track.Name} 정보 글 — {next}"));
         GenerateCommand.NotifyCanExecuteChanged();
+        AskPlannerCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshPlan()
     {
         if (_theme is null) return;
+        _plannerPicked = false;
+        _pickedKeyword = "";
+        TopicIdeas.Clear();
         var today = _today();
         if (IsMemoCategory && _life is not null)
         {
@@ -748,6 +881,7 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var p in planner.Upcoming(today, _store.NextIndex, 3))
             UpcomingTopics.Add(new UpcomingTopicItem($"{p.DayLabel} · {p.Track.Name} — {p.Topic ?? "자동 심화 주제"}"));
         GenerateCommand.NotifyCanExecuteChanged();
+        AskPlannerCommand.NotifyCanExecuteChanged();
     }
 
     private bool CanGenerate() => !IsGenerating && _plan is not null;
@@ -767,7 +901,10 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             var history = _store.LoadState().History;
-            var prompt = _prompts.Build(theme, _plan.Track, _plan.Topic, history, _settings.Author, ExtraRequest, inputs,
+            var extra = string.IsNullOrWhiteSpace(_pickedKeyword) || fromMemo
+                ? ExtraRequest
+                : $"{ExtraRequest}\n핵심 검색 키워드 \"{_pickedKeyword}\"를 제목 앞쪽과 첫 문단에 자연스럽게 넣어 주세요.".Trim();
+            var prompt = _prompts.Build(theme, _plan.Track, _plan.Topic, history, _settings.Author, extra, inputs,
                 _settings.StyleSample);
             var model = string.IsNullOrWhiteSpace(_settings.ClaudeModel) ? null : _settings.ClaudeModel;
             var result = await _provider.GenerateAsync(new AiRequest(prompt.System, prompt.User, theme.ModelTier, model), ct);
@@ -782,7 +919,8 @@ public sealed partial class MainViewModel : ObservableObject
             var folder = _store.CreatePostFolder(post);
             var images = await ImagePipeline.RunAsync(post, folder, BuildImageOptions(_plan, theme, fromMemo, photos), ct);
             post = post with { BodyMarkdown = images.BodyMarkdown };
-            var savedPath = _store.SavePost(post, !fromMemo && _plan.Topic is not null, folder, images.Images);
+            var advance = !fromMemo && _plan.Topic is not null && !_plannerPicked;   // 기획자 주제는 커리큘럼 진행에 안 셈
+            var savedPath = _store.SavePost(post, advance, folder, images.Images);
             if (IsMemoCategory)
             {
                 MemoName = "";
@@ -844,6 +982,7 @@ public sealed partial class MainViewModel : ObservableObject
         _codeErrors = Array.Empty<CodeCheck>();
         HasCodeErrors = false;
         TitleIdeas.Clear();
+        ClearEditorReview();
         RunChecks(post);
         // 붙여넣기용: 이미지 자리는 "[이미지 N]" 표시 / 미리보기용: 실제 이미지
         _bodyHtml = BlogHtmlRenderer.ToBlogHtml(BlogHtmlRenderer.ReplaceImagesWithPlaceholders(post.BodyMarkdown));
