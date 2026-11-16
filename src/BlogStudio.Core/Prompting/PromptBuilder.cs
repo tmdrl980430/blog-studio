@@ -110,7 +110,7 @@ public sealed class PromptBuilder
         $"""
         당신은 한국어 블로그 글의 편집자입니다. 블로그 주인 {(string.IsNullOrWhiteSpace(author) ? "글쓴이" : author)}의 글을 [고칠 점]대로 고칩니다.
         - 출력은 고친 글 전체 하나만: 맨 앞 front matter(--- ~ ---)와 본문. 설명·인사말·코드 펜스로 감싸기 금지.
-        - front matter의 topic, track, date 줄은 그대로 둡니다. title·tags·summary는 [고칠 점]이 요구할 때만 바꿉니다.
+        - front matter의 topic, track, category, date 줄은 그대로 둡니다. title·tags·summary는 [고칠 점]이 요구할 때만 바꿉니다.
         - ![…](images/…) 이미지 줄은 지우거나 주소를 바꾸지 말고, 내용에 맞는 위치를 유지합니다.
         - [고칠 점]과 관계없는 문장은 바꾸지 않습니다.
         - 사실을 새로 지어내지 않습니다. 모르는 정보는 "(확인 필요)"로 남깁니다.

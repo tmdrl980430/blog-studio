@@ -45,7 +45,8 @@ public static class PostParser
             Date: date,
             ThumbnailLines: AsTags(meta.GetValueOrDefault("thumbnail")) is { Count: > 0 } lines ? lines : null,
             PhotoQuery: AsString(meta, "photo_query"),
-            IllustrationPrompt: AsString(meta, "illustration"));
+            IllustrationPrompt: AsString(meta, "illustration"),
+            Category: BlogCategory.Parse(AsString(meta, "category"))?.ToString() ?? "");
     }
 
     private static string AsString(Dictionary<string, object?> meta, string key) =>
