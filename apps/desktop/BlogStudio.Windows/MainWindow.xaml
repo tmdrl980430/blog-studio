@@ -286,6 +286,24 @@
                     </ItemsControl>
                 </Expander>
 
+                <!-- 코드 오류 고치기 · 제목 후보 -->
+                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8" Visibility="{Binding HasPost, Converter={StaticResource BoolToVis}}">
+                    <Button Content="코드 오류 고치기" Style="{StaticResource PrimaryButton}" Command="{Binding FixCodeErrorsCommand}" Margin="0,0,6,6"
+                            Visibility="{Binding HasCodeErrors, Converter={StaticResource BoolToVis}}" />
+                    <Button Content="제목 추천" ToolTip="검색이 잘 되는 제목 후보 5개" Style="{StaticResource SecondaryButton}" Command="{Binding SuggestTitlesCommand}" Margin="0,0,6,6" />
+                    <ItemsControl ItemsSource="{Binding TitleIdeas}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Content="{Binding}" ToolTip="이 제목으로 바꾸기" Style="{StaticResource SecondaryButton}" Margin="0,0,6,6"
+                                        Command="{Binding DataContext.ApplyTitleCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </WrapPanel>
+
                 <!-- Claude로 고치기 / 직접 편집 -->
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" Visibility="{Binding HasPost, Converter={StaticResource BoolToVis}}">
                     <Button DockPanel.Dock="Right" Content="인스타 카드" ToolTip="이 글을 1080×1350 카드 뉴스와 캡션으로" Style="{StaticResource SecondaryButton}" Command="{Binding MakeInstaCardsCommand}" Margin="6,0,0,0" />

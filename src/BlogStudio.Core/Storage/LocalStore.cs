@@ -35,6 +35,13 @@ public sealed class AppSettings
     public string OpenAiImageModel { get; set; } = "gpt-image-2";
     public string OpenAiImageQuality { get; set; } = "low";
 
+    // ── 글 품질 ──
+    /// <summary>내가 직접 쓴 글 일부. 말투·어미를 따라 하게 프롬프트에 넣는다 (최대 1,500자).</summary>
+    public string StyleSample { get; set; } = "";
+
+    /// <summary>글 속 파이썬 코드 예제를 이 PC에서 실행해 오류를 찾는다 (파일·네트워크 쓰는 코드는 건너뜀).</summary>
+    public bool CodeCheckEnabled { get; set; } = true;
+
     // ── 매일 자동 작성 ──
     /// <summary>켜면 매일 DailyTime에 앱이 열려 오늘의 기술 글을 만든다 (Windows 작업 스케줄러).</summary>
     public bool DailyAutoEnabled { get; set; }

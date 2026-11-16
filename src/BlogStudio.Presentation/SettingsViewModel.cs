@@ -24,6 +24,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         _thumbnailEnabled = _settings.ThumbnailEnabled;
         _diagramsEnabled = _settings.DiagramsEnabled;
         _aiImagesEnabled = _settings.AiImagesEnabled;
+        _styleSample = _settings.StyleSample;
+        _codeCheckEnabled = _settings.CodeCheckEnabled;
         _dailyAutoEnabled = _settings.DailyAutoEnabled;
         _dailyTime = string.IsNullOrWhiteSpace(_settings.DailyTime) ? "07:30" : _settings.DailyTime;
         _openAiImageQuality = string.IsNullOrWhiteSpace(_settings.OpenAiImageQuality) ? "low" : _settings.OpenAiImageQuality;
@@ -33,6 +35,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>이 기기에서 매일 자동 작성을 쓸 수 있는지 (Windows만).</summary>
     public bool CanScheduleDaily => _scheduler is not null;
+
+    [ObservableProperty] private string _styleSample = "";
+    [ObservableProperty] private bool _codeCheckEnabled;
+    public int StyleSampleLimit => BlogStudio.Core.Prompting.PromptBuilder.StyleSampleLimit;
 
     [ObservableProperty] private bool _dailyAutoEnabled;
     [ObservableProperty] private string _dailyTime;
@@ -104,6 +110,8 @@ public sealed partial class SettingsViewModel : ObservableObject
                 return;
             }
         }
+        _settings.StyleSample = StyleSample.Trim();
+        _settings.CodeCheckEnabled = CodeCheckEnabled;
         _settings.DailyAutoEnabled = DailyAutoEnabled && _scheduler is not null;
         _settings.DailyTime = time.ToString("HH:mm");
         _settings.Author = Author.Trim();

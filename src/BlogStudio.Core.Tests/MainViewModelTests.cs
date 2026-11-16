@@ -9,13 +9,14 @@ public class MainViewModelTests
     private sealed class FakeProvider : IAiProvider
     {
         public AiRequest? Last;
+        public string Text = Fixtures.SampleResponse;
         public string Name => "Fake";
         public Task<string?> CheckAsync(CancellationToken ct = default) => Task.FromResult<string?>("1.0");
 
         public Task<AiResult> GenerateAsync(AiRequest request, CancellationToken ct = default)
         {
             Last = request;
-            return Task.FromResult(new AiResult(Fixtures.SampleResponse, Name, "sonnet"));
+            return Task.FromResult(new AiResult(Text, Name, "sonnet"));
         }
     }
 
@@ -272,6 +273,49 @@ public class MainViewModelTests
         Assert.False(vm.IsGenerating);
         Assert.Contains("취소", vm.StatusText);
         Assert.Equal("짧게", vm.RevisionRequest);                               // 취소하면 고칠 점은 남겨 둠
+    }
+
+    [Fact]
+    public async Task Code_errors_show_in_checks_and_fix_button_asks_claude()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-code-vm-").FullName);
+        var provider = new FakeProvider();
+        var response = Fixtures.SampleResponse + "\n\n```python\nprint(1 / 0)\n```\n";
+        provider.Text = response;
+        var vm = new MainViewModel(Fixtures.Themes(), store, provider, new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11), codeChecker: new Quality.CodeChecker(new QualityTests.FakePython()));
+        await vm.InitializeCommand.ExecuteAsync(null);
+        await vm.GenerateCommand.ExecuteAsync(null);
+
+        Assert.True(vm.HasCodeErrors);
+        Assert.Contains(vm.Checks, c => c.Text.Contains("ZeroDivisionError"));
+        Assert.True(vm.FixCodeErrorsCommand.CanExecute(null));
+
+        provider.Text = Fixtures.SampleResponse;                               // 고친 글에는 오류 코드 없음
+        await vm.FixCodeErrorsCommand.ExecuteAsync(null);
+        Assert.Contains("1번째 파이썬 코드 블록: ZeroDivisionError", provider.Last!.User);
+        Assert.False(vm.HasCodeErrors);
+    }
+
+    [Fact]
+    public async Task Title_ideas_apply_to_current_post()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-title-").FullName);
+        var provider = new FakeProvider();
+        var vm = new MainViewModel(Fixtures.Themes(), store, provider, new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11));
+        await vm.InitializeCommand.ExecuteAsync(null);
+        await vm.GenerateCommand.ExecuteAsync(null);
+
+        provider.Text = "1. 파이썬 코테 문법 총정리\n2. 코테 파이썬 필수 문법 7가지";
+        await vm.SuggestTitlesCommand.ExecuteAsync(null);
+        Assert.Equal("haiku", provider.Last!.PreferredModel);
+        Assert.Equal(2, vm.TitleIdeas.Count);
+
+        vm.ApplyTitleCommand.Execute(vm.TitleIdeas[1]);
+        Assert.Equal("코테 파이썬 필수 문법 7가지", vm.PostTitle);
+        Assert.Equal("코테 파이썬 필수 문법 7가지", store.LoadLatest()!.Post.Title);
+        Assert.Empty(vm.TitleIdeas);
     }
 
     private sealed class FakeBrowser : IBrowserLauncher

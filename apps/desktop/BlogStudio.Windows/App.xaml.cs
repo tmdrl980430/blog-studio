@@ -48,7 +48,8 @@ public partial class App : Application
             var viewModel = new MainViewModel(themes, store, provider, clipboard, new ShellBrowserLauncher(),
                 setup: new WindowsClaudeCodeSetup(), updates: new VelopackUpdateService(),
                 imageServices: new BlogStudio.Core.Images.ImageServices(store),
-                autoFill: new AutoFill.WpfAutoFillLauncher(clipboard), files: new WpfFilePicker());
+                autoFill: new AutoFill.WpfAutoFillLauncher(clipboard), files: new WpfFilePicker(),
+                codeChecker: new BlogStudio.Core.Quality.CodeChecker(new BlogStudio.Core.Ai.SystemProcessRunner()));
 
             var auto = e.Args.Contains(Services.WindowsDailyScheduler.AutoArgument);
             var window = new MainWindow(viewModel, store, auto);

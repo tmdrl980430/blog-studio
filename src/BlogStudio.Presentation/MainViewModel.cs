@@ -3,6 +3,7 @@ using BlogStudio.Core;
 using BlogStudio.Core.Ai;
 using BlogStudio.Core.Images;
 using BlogStudio.Core.Insta;
+using BlogStudio.Core.Quality;
 using BlogStudio.Core.Stats;
 using BlogStudio.Core.Posts;
 using BlogStudio.Core.Prompting;
@@ -67,8 +68,9 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(ThemeRepository themes, LocalStore store, IAiProvider provider,
         IClipboardService clipboard, IBrowserLauncher browser, Func<DateOnly>? today = null,
         IClaudeCodeSetup? setup = null, IUpdateService? updates = null, IImageServices? imageServices = null,
-        IAutoFillLauncher? autoFill = null, IFilePicker? files = null)
+        IAutoFillLauncher? autoFill = null, IFilePicker? files = null, CodeChecker? codeChecker = null)
     {
+        _codeChecker = codeChecker;
         _files = files;
         _autoFill = autoFill;
         _imageServices = imageServices;
@@ -253,11 +255,13 @@ public sealed partial class MainViewModel : ObservableObject
         nameof(AutoFillNaverCommand), nameof(AutoFillTistoryCommand),
         nameof(CopyMarkdownCommand), nameof(CopyTitleAndTagsCommand),
         nameof(ShowRenderedCommand), nameof(ShowMarkdownCommand), nameof(OpenPreviewInBrowserCommand),
-        nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand))]
+        nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand),
+        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand))]
     private bool _postReady;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(GenerateCommand), nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GenerateCommand), nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand),
+        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand))]
     private bool _isGenerating;
 
     // ── 발행 전 점검 ──
@@ -302,6 +306,7 @@ public sealed partial class MainViewModel : ObservableObject
             };
             SaveCurrent(revised);
             RevisionRequest = "";
+            await CheckCodeAsync(ct);
             var lost = BlogHtmlRenderer.ImageSourcesInOrder(_post!.BodyMarkdown).Count < _savedImages.Count;
             StatusText = lost ? "고쳤어요 — 이미지 일부가 빠졌어요. 직접 편집으로 확인해 주세요" : "고쳤어요";
         }
@@ -323,8 +328,100 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void CancelWork()
     {
-        foreach (var cancel in new[] { GenerateCancelCommand, ReviseCancelCommand, MakeInstaCardsCancelCommand })
+        foreach (var cancel in new[] { GenerateCancelCommand, ReviseCancelCommand, MakeInstaCardsCancelCommand, SuggestTitlesCancelCommand })
             if (cancel.CanExecute(null)) cancel.Execute(null);
+    }
+
+    // ── 코드 실행 확인 ──
+    private readonly CodeChecker? _codeChecker;
+    private IReadOnlyList<CodeCheck> _codeErrors = Array.Empty<CodeCheck>();
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(FixCodeErrorsCommand))]
+    private bool _hasCodeErrors;
+
+    /// <summary>지금 글의 파이썬 코드를 실행해 보고 결과를 점검 목록에 더한다.</summary>
+    public async Task CheckCodeAsync(CancellationToken ct = default)
+    {
+        _codeErrors = Array.Empty<CodeCheck>();
+        HasCodeErrors = false;
+        if (_codeChecker is null || !_settings.CodeCheckEnabled || _post is null) return;
+        var post = _post;
+        IReadOnlyList<CodeCheck>? results;
+        try
+        {
+            results = await _codeChecker.CheckAsync(post.BodyMarkdown, ct);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or AiProviderException)
+        {
+            Checks.Add(new CheckItem(CheckLevel.Ok, "코드 실행 확인 건너뜀 (" + ex.Message + ")"));
+            return;
+        }
+        if (!ReferenceEquals(post, _post)) return;                           // 그사이 다른 글을 열었으면 버림
+        if (results is null)
+        {
+            Checks.Add(new CheckItem(CheckLevel.Ok, "코드 실행 확인 건너뜀 (이 PC에 파이썬 없음)"));
+            return;
+        }
+        foreach (var r in results)
+            Checks.Add(new CheckItem(r.Status == CodeStatus.Error ? CheckLevel.Warn : CheckLevel.Ok, r.Label));
+        _codeErrors = results.Where(r => r.Status == CodeStatus.Error).ToList();
+        HasCodeErrors = _codeErrors.Count > 0;
+        var warn = Checks.Count(c => c.Level == CheckLevel.Warn);
+        CheckSummary = warn == 0 ? "발행 전 점검 · 모두 좋아요" : $"발행 전 점검 · {warn}개 확인";
+    }
+
+    private bool CanFixCode() => HasCodeErrors && CanRevise_NoRequest();
+
+    private bool CanRevise_NoRequest() => PostReady && !IsGenerating && !IsEditing;
+
+    /// <summary>코드 오류를 고칠 점으로 넣어 Claude로 고치기.</summary>
+    [RelayCommand(CanExecute = nameof(CanFixCode))]
+    private async Task FixCodeErrorsAsync()
+    {
+        RevisionRequest = "아래 파이썬 코드 실행 오류를 고쳐 주세요. 코드와 그 코드를 설명하는 문장만 고치고 나머지는 그대로 둡니다.\n" +
+                          string.Join("\n", _codeErrors.Select(e => $"- 글의 {e.Number}번째 파이썬 코드 블록: {e.Message}"));
+        await ReviseCommand.ExecuteAsync(null);
+    }
+
+    // ── 제목 추천 ──
+    public ObservableCollection<string> TitleIdeas { get; } = new();
+
+    [RelayCommand(CanExecute = nameof(CanRevise_NoRequest), IncludeCancelCommand = true)]
+    private async Task SuggestTitlesAsync(CancellationToken ct)
+    {
+        if (_post is null) return;
+        IsGenerating = true;
+        StatusText = "검색이 잘 되는 제목을 찾는 중…";
+        try
+        {
+            var p = PromptBuilder.BuildTitleIdeas(_post.Title, _post.Tags, _post.Summary, _post.BodyMarkdown);
+            var result = await _provider.GenerateAsync(new AiRequest(p.System, p.User, "light", "haiku"), ct);
+            TitleIdeas.Clear();
+            foreach (var t in PromptBuilder.ParseTitleIdeas(result.Text)) TitleIdeas.Add(t);
+            StatusText = TitleIdeas.Count > 0 ? "제목 후보를 눌러 바꿀 수 있어요" : "제목 후보를 받지 못했어요";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "제목 추천을 취소했어요";
+        }
+        catch (AiProviderException ex)
+        {
+            StatusText = "제목 추천 실패: " + ex.Message;
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ApplyTitle(string? title)
+    {
+        if (_post is null || string.IsNullOrWhiteSpace(title) || string.IsNullOrEmpty(_currentFile)) return;
+        SaveCurrent(_post with { Title = title.Trim() });
+        TitleIdeas.Clear();
+        StatusText = "제목을 바꿨어요";
     }
 
     // ── 인스타 카드 ──
@@ -380,7 +477,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ── 직접 편집 ──
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand),
+        nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand))]
     private bool _isEditing;
 
     [ObservableProperty] private string _editTitle = "";
@@ -412,6 +510,7 @@ public sealed partial class MainViewModel : ObservableObject
             .Distinct().ToList();
         IsEditing = false;
         SaveCurrent(_post with { Title = EditTitle.Trim(), Tags = tags, BodyMarkdown = EditBody.TrimEnd() });
+        _ = CheckCodeAsync();
         StatusText = "편집한 내용을 저장했어요";
     }
 
@@ -654,7 +753,8 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             var history = _store.LoadState().History;
-            var prompt = _prompts.Build(theme, _plan.Track, _plan.Topic, history, _settings.Author, ExtraRequest, inputs);
+            var prompt = _prompts.Build(theme, _plan.Track, _plan.Topic, history, _settings.Author, ExtraRequest, inputs,
+                _settings.StyleSample);
             var model = string.IsNullOrWhiteSpace(_settings.ClaudeModel) ? null : _settings.ClaudeModel;
             var result = await _provider.GenerateAsync(new AiRequest(prompt.System, prompt.User, theme.ModelTier, model), ct);
 
@@ -678,6 +778,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             ShowPost(new SavedPost(post, folder, images.Images, _store.RelativeFileName(savedPath)));
             RefreshHistory();
+            await CheckCodeAsync(ct);
             ExtraRequest = "";
             RefreshPlan();
             StatusText = images.Warnings.Count == 0
@@ -726,6 +827,9 @@ public sealed partial class MainViewModel : ObservableObject
         _folder = saved.Folder;
         _savedImages = saved.Images;
         IsEditing = false;
+        _codeErrors = Array.Empty<CodeCheck>();
+        HasCodeErrors = false;
+        TitleIdeas.Clear();
         RunChecks(post);
         // 붙여넣기용: 이미지 자리는 "[이미지 N]" 표시 / 미리보기용: 실제 이미지
         _bodyHtml = BlogHtmlRenderer.ToBlogHtml(BlogHtmlRenderer.ReplaceImagesWithPlaceholders(post.BodyMarkdown));
