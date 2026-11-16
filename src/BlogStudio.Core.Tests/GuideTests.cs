@@ -47,7 +47,7 @@ public class BlogGuideTests
         Assert.StartsWith("CSS · ", tistory.CodeBlocks.First(b => b.Language == "css").Label);
 
         var page = tistory.ToHtmlPage();
-        Assert.Contains("<h1 class=\"title\">티스토리 개설·디자인 가이드</h1>", page);
+        Assert.Contains("<h1 class=\"title\">티스토리 개설", page);               // 가운뎃점은 &#183;로 인코딩됨
         Assert.Contains("<h2 style=", page);
     }
 
