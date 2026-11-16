@@ -106,7 +106,29 @@
                     <TextBlock FontSize="12" Foreground="{StaticResource Muted}">
                         <Run Text="{Binding DateLabel, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding TrackName, Mode=OneWay}" />
                     </TextBlock>
-                    <TextBlock Text="{Binding TopicTitle}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" Margin="0,4,0,16" />
+                    <TextBlock Text="{Binding TopicTitle}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" Margin="0,4,0,8" />
+
+                    <!-- AI 직원: 기획자 — 오늘 주제 대신 검색될 만한 주제 후보 (커리큘럼 순서는 그대로) -->
+                    <Button Content="기획자에게 주제 받기" ToolTip="이 트랙에서 검색될 만한 주제 5개를 추천받아요. '추가 요청'에 적은 내용도 참고해요"
+                            Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Command="{Binding AskPlannerCommand}" Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding TopicIdeas}" Margin="0,0,0,8">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Stretch" Padding="12,8" Margin="0,0,0,6"
+                                        ToolTip="이 주제로 오늘 글 쓰기"
+                                        Command="{Binding DataContext.PickTopicIdeaCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Topic}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap">
+                                            <Run Text="{Binding Keyword, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding Reason, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Height="8" />
 
                     <!-- 일상·리뷰: 메모가 있으면 후기, 비우면 위 주제로 정보 글 -->
                     <StackPanel Visibility="{Binding IsMemoCategory, Converter={StaticResource BoolToVis}}" Margin="0,0,0,16">
@@ -290,6 +312,7 @@
                 <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8" Visibility="{Binding HasPost, Converter={StaticResource BoolToVis}}">
                     <Button Content="코드 오류 고치기" Style="{StaticResource PrimaryButton}" Command="{Binding FixCodeErrorsCommand}" Margin="0,0,6,6"
                             Visibility="{Binding HasCodeErrors, Converter={StaticResource BoolToVis}}" />
+                    <Button Content="편집자 검수" ToolTip="AI 편집자가 사실·지어낸 경험·광고 정책·검색·문장을 보고 고칠 점을 알려 줘요" Style="{StaticResource PrimaryButton}" Command="{Binding ReviewWithEditorCommand}" Margin="0,0,6,6" />
                     <Button Content="제목 추천" ToolTip="검색이 잘 되는 제목 후보 5개" Style="{StaticResource SecondaryButton}" Command="{Binding SuggestTitlesCommand}" Margin="0,0,6,6" />
                     <ItemsControl ItemsSource="{Binding TitleIdeas}">
                         <ItemsControl.ItemsPanel>
@@ -303,6 +326,27 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </WrapPanel>
+
+                <!-- AI 직원: 편집자 검수 결과 -->
+                <Border DockPanel.Dock="Top" Background="#F3F6FD" CornerRadius="10" Padding="12,10" Margin="0,0,0,8"
+                        Visibility="{Binding HasEditorReview, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="의견대로 고치기" Style="{StaticResource PrimaryButton}" Command="{Binding ApplyEditorNotesCommand}"
+                                    Visibility="{Binding HasEditorNotes, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Text="{Binding EditorVerdict}" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <ItemsControl ItemsSource="{Binding EditorNotes}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0">
+                                        <Run Text="• " /><Run Text="{Binding Mode=OneWay}" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
 
                 <!-- Claude로 고치기 / 직접 편집 -->
                 <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10" Visibility="{Binding HasPost, Converter={StaticResource BoolToVis}}">
