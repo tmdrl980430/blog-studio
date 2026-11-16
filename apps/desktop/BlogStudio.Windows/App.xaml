@@ -10,6 +10,8 @@
         <SolidColorBrush x:Key="Accent" Color="#2F5BEA" />
         <SolidColorBrush x:Key="AccentSoft" Color="#EAF0FF" />
         <FontFamily x:Key="UiFont">Malgun Gothic, Segoe UI</FontFamily>
+        <!-- 여러 창(MainWindow·SettingsWindow)이 같이 쓰므로 창 리소스가 아니라 여기에 둔다 (이슈 #24) -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
         <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource Accent}" />
