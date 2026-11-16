@@ -1,4 +1,5 @@
 using BlogStudio.Core.Ai;
+using BlogStudio.Core.Posts;
 using BlogStudio.Core.Storage;
 using BlogStudio.Presentation;
 
@@ -524,6 +525,24 @@ public class SettingsViewModelTests
 
         var s = store.LoadSettings();
         Assert.Equal(("chatgpt", "gpt-5.4", false), (s.Engine, s.ChatGptModel, s.SaveUsage));
+    }
+
+    [Fact]
+    public void Category_list_is_edited_saved_and_reset()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-catvm-").FullName);
+        var vm = new SettingsViewModel(store);
+        Assert.Equal(BlogCategories.ToText(BlogCategories.Default), vm.CategoriesText);   // 처음엔 기본 체계
+
+        vm.CategoriesText = "개발 > 자바\r\n\r\n생활>맛집·카페\r\n개발 > 자바";
+        vm.SaveCommand.Execute(null);
+        Assert.Equal(new[] { "개발 > 자바", "생활 > 맛집·카페" }, store.LoadSettings().Categories);
+        Assert.Equal("개발 > 자바" + Environment.NewLine + "생활 > 맛집·카페", new SettingsViewModel(store).CategoriesText);
+
+        vm.ResetCategoriesCommand.Execute(null);
+        vm.SaveCommand.Execute(null);
+        Assert.Empty(store.LoadSettings().Categories);                                   // 기본값이면 따로 적지 않음
+        Assert.False(store.LoadSettings().AutoPublishEnabled);                            // 다른 설정은 그대로
     }
 
     [Fact]

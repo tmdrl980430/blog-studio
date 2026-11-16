@@ -11,7 +11,7 @@
 ## 자동 발행 카테고리 (이슈 #19, 나눠서 진행)
 
 - [x] 1단계: `PostDraft.Category`("상위 > 하위") + post.md `category:` 줄(없으면 안 씀, 예전 글 그대로 열림) + 기본 체계 `BlogCategories`·트랙별 기본 카테고리 (2026-11-17)
-- [ ] 2단계: 설정에 "블로그 카테고리 목록" 편집 칸 (기본값 `BlogCategories.Default`, settings.json에 새 필드 추가만)
+- [x] 2단계: 설정에 "블로그 카테고리 목록" 편집 칸 (기본값 `BlogCategories.Default`, settings.json `categories` 새 필드 — 비어 있으면 기본 체계, 목록에서 지운 트랙 기본값은 쓰지 않음) (2026-11-16)
 - [ ] 3단계: 기획자 지시문(`shared/staff/planner.md`)에 카테고리 고르기 추가 + 형식 테스트 (지금은 트랙 기본값으로 자동 지정)
 - [ ] 4단계: autofill로 네이버·티스토리 카테고리 선택. 블로그에 없으면 만들지 않고 기본 카테고리 + auto-log "카테고리 없음: ○○". `api`를 올려야 하면 이슈에 방법만 적고 멈춤
 - [ ] 웹앱 `posts.ts`에도 `category` 읽기·쓰기

@@ -67,6 +67,13 @@ public sealed class AppSettings
     public bool AutoPublishEnabled { get; set; }
     public bool AutoPublishNaver { get; set; } = true;
     public bool AutoPublishTistory { get; set; } = true;
+
+    // ── 블로그 카테고리 (이슈 #19) ──
+    /// <summary>
+    /// 블로그 카테고리 목록, 한 줄에 "상위 > 하위" 하나. 비어 있으면 기본 체계(<see cref="BlogCategories.Default"/>).
+    /// 예전 settings.json에는 이 필드가 없고, 그때도 기본 체계로 동작한다.
+    /// </summary>
+    public List<string> Categories { get; set; } = new();
 }
 
 /// <summary>API 키 같은 비밀 값을 디스크에 쓸 때 암호화 (Windows: DPAPI, Mac: 키체인 예정).</summary>
