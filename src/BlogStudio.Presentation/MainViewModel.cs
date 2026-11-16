@@ -371,6 +371,7 @@ public sealed partial class MainViewModel : ObservableObject
                 ThumbnailLines = _post.ThumbnailLines,
                 PhotoQuery = _post.PhotoQuery,
                 IllustrationPrompt = _post.IllustrationPrompt,
+                Category = _post.Category,
             };
             SaveCurrent(revised);
             RevisionRequest = "";
@@ -983,6 +984,7 @@ public sealed partial class MainViewModel : ObservableObject
                 : _plan.Topic ?? "(자동 선정)";
             var post = PostParser.Parse(result.Text, topicLabel, _plan.Track.Key, _today());
             if (!fromMemo && _plan.Topic is null) post = post with { Topic = post.Title };
+            post = post with { Category = BlogCategories.Resolve(post.Category, post.TrackKey) };
 
             StatusText = "이미지 만드는 중… (썸네일·그림·사진)";
             var folder = _store.CreatePostFolder(post);

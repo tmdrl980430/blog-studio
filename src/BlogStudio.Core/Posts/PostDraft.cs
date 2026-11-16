@@ -1,6 +1,7 @@
 namespace BlogStudio.Core.Posts;
 
-/// <summary>AI가 쓴 글 한 편. 본문은 마크다운 한 벌만 보관하고, 네이버·티스토리용 HTML은 렌더러가 만든다.</summary>
+/// <summary>AI가 쓴 글 한 편. 본문은 마크다운 한 벌만 보관하고, 네이버·티스토리용 HTML은 렌더러가 만든다.
+/// Category: "상위 > 하위" (예전 post.md처럼 없으면 "").</summary>
 public sealed record PostDraft(
     string Title,
     IReadOnlyList<string> Tags,
@@ -11,7 +12,8 @@ public sealed record PostDraft(
     DateOnly Date,
     IReadOnlyList<string>? ThumbnailLines = null,
     string PhotoQuery = "",
-    string IllustrationPrompt = "")
+    string IllustrationPrompt = "",
+    string Category = "")
 {
     public string TagLine => string.Join(" ", Tags.Select(t => "#" + t));
 }

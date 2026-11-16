@@ -199,10 +199,13 @@ public sealed class LocalStore
     public string SavePost(PostDraft post, bool advanceProgress) =>
         SavePost(post, advanceProgress, CreatePostFolder(post), Array.Empty<PostImage>());
 
-    /// <summary>post.md 형식 (front matter + 본문). 수정 요청 때 Claude에게도 이 형식으로 보낸다.</summary>
+    /// <summary>post.md 형식 (front matter + 본문). 수정 요청 때 Claude에게도 이 형식으로 보낸다.
+    /// category 줄은 값이 있을 때만 쓴다 (예전 글은 그대로).</summary>
     public static string ToFileText(PostDraft post) =>
         $"---\ntitle: \"{Esc(post.Title)}\"\ntags: [{string.Join(", ", post.Tags)}]\nsummary: \"{Esc(post.Summary)}\"\n" +
-        $"topic: \"{Esc(post.Topic)}\"\ntrack: {post.TrackKey}\ndate: {post.Date:yyyy-MM-dd}\n---\n\n{post.BodyMarkdown}\n";
+        $"topic: \"{Esc(post.Topic)}\"\ntrack: {post.TrackKey}\n" +
+        (string.IsNullOrWhiteSpace(post.Category) ? "" : $"category: \"{Esc(post.Category)}\"\n") +
+        $"date: {post.Date:yyyy-MM-dd}\n---\n\n{post.BodyMarkdown}\n";
 
     /// <summary>이미 저장한 글을 고친 내용으로 덮어쓴다 (진도·이미지는 그대로, 목록의 제목만 갱신).</summary>
     public void UpdatePost(string fileName, PostDraft post)
