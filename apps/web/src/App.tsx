@@ -5,7 +5,9 @@ import { buildPrompt, buildRevision } from "./lib/prompt";
 import { plan, planTrack, isoDate, DAY_LABELS, dayKey, type PlannedTopic } from "./lib/planner";
 import { toBlogHtml, extractFigures, copyRich } from "./lib/render";
 import { addPost, load, save, updatePost, type AppData, type SavedPost } from "./lib/storage";
-import { generate, ClaudeError } from "./lib/claude";
+import { ClaudeError } from "./lib/claude";
+import { OpenAiError } from "./lib/openai";
+import { generateWith, providerReady, historyLimit } from "./lib/ai";
 import { renderThumbnail, splitTitle, svgToPng, copyImage } from "./lib/images";
 import { SettingsDialog } from "./components/SettingsDialog";
 
@@ -42,7 +44,7 @@ export default function App() {
   const [current, setCurrent] = useState<SavedPost | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
   const [revision, setRevision] = useState("");
-  const [showSettings, setShowSettings] = useState(() => !load().settings.apiKey);
+  const [showSettings, setShowSettings] = useState(() => !providerReady(load().settings));
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => save(data), [data]);
@@ -98,7 +100,7 @@ export default function App() {
     try {
       await work(abort.current.signal);
     } catch (e) {
-      setStatus((e as Error).name === "AbortError" ? "취소했어요" : e instanceof ClaudeError ? e.message : "실패: " + (e as Error).message);
+      setStatus((e as Error).name === "AbortError" ? "취소했어요" : e instanceof ClaudeError || e instanceof OpenAiError ? e.message : "실패: " + (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -113,9 +115,9 @@ export default function App() {
         BASE, theme, planned.track, planned.topic,
         data.posts.map((p) => ({ date: p.date, track: p.track, title: p.title })),
         data.settings.author,
-        { extra, inputs: cat.memo ? { name: memoName, memo } : undefined, styleSample: data.settings.styleSample },
+        { extra, inputs: cat.memo ? { name: memoName, memo } : undefined, styleSample: data.settings.styleSample, historyLimit: historyLimit(data.settings) },
       );
-      const r = await generate(data.settings.apiKey, data.settings.model, prompt, { signal });
+      const r = await generateWith(data.settings, prompt, "main", signal);
       const topic = fromMemo ? memoName.trim() || "메모 후기" : planned.topic ?? "(자동 선정)";
       let post: PostDraft = parsePost(r.text, topic, planned.track.key, today);
       if (!fromMemo && !planned.topic) post = { ...post, topic: post.title };
@@ -132,7 +134,7 @@ export default function App() {
     run(async (signal) => {
       if (!current || !revision.trim()) return;
       setStatus("고치는 중…");
-      const r = await generate(data.settings.apiKey, data.settings.model, buildRevision(toFileText(current), revision, data.settings.author), { signal });
+      const r = await generateWith(data.settings, buildRevision(toFileText(current), revision, data.settings.author), "main", signal);
       const revised = parsePost(r.text, current.topic, current.track, current.date);
       const next = updatePost(data, current.id, { title: revised.title, tags: revised.tags, summary: revised.summary, body: revised.body });
       setData(next);
@@ -179,7 +181,7 @@ export default function App() {
     <div className="app">
       <header>
         <strong>Blog Studio</strong>
-        <span className="muted">웹 · 내 API 키로</span>
+        <span className="muted">웹 · 내 {data.settings.provider === "openai" ? "OpenAI" : "Claude"} API 키로</span>
         <button className="secondary" onClick={() => setShowSettings(true)}>설정</button>
       </header>
 

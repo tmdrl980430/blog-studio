@@ -29,7 +29,7 @@ export function buildPrompt(
   topic: string | null,
   history: HistoryLine[],
   author: string,
-  opts: { extra?: string; inputs?: PostInputs; styleSample?: string } = {},
+  opts: { extra?: string; inputs?: PostInputs; styleSample?: string; historyLimit?: number } = {},
 ): PromptPair {
   let system = base
     .replaceAll("{author}", author.trim() || "블로그 주인")
@@ -46,7 +46,7 @@ export function buildPrompt(
   const recent = history
     .filter((h) => h.track === track.key)
     .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, HISTORY_LIMIT)
+    .slice(0, opts.historyLimit ?? HISTORY_LIMIT)
     .map((h) => `- ${h.date} ${h.title}`);
 
   const memo = opts.inputs?.memo.trim();

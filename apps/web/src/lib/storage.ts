@@ -6,8 +6,14 @@ import type { PostDraft } from "./posts";
  */
 export interface Settings {
   author: string;
-  apiKey: string;
+  /** 글 쓰는 AI: Claude API 또는 OpenAI API (각자 내 키) */
+  provider: "claude" | "openai";
+  apiKey: string; // Claude API 키
   model: string; // sonnet | opus | haiku
+  openaiKey: string;
+  openaiModel: string;
+  /** 사용량 절약: 이전 글 목록을 줄이고, OpenAI는 추론을 낮게 */
+  saveUsage: boolean;
   naverBlogId: string;
   tistoryName: string;
   blogName: string;
@@ -29,8 +35,12 @@ export interface AppData {
 
 export const DEFAULT_SETTINGS: Settings = {
   author: "",
+  provider: "claude",
   apiKey: "",
   model: "sonnet",
+  openaiKey: "",
+  openaiModel: "gpt-5.4-mini",
+  saveUsage: true,
   naverBlogId: "",
   tistoryName: "",
   blogName: "",
@@ -77,5 +87,5 @@ export function updatePost(data: AppData, id: string, change: Partial<SavedPost>
 
 /** 내보내기·가져오기 (브라우저를 바꾸거나 데스크톱 앱으로 옮길 때). API 키는 빼고. */
 export function exportJson(data: AppData) {
-  return JSON.stringify({ ...data, settings: { ...data.settings, apiKey: "" } }, null, 2);
+  return JSON.stringify({ ...data, settings: { ...data.settings, apiKey: "", openaiKey: "" } }, null, 2);
 }

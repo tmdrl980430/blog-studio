@@ -44,3 +44,6 @@ article h1 { font-size:24px; margin:0 0 8px; }
 .file input { display:none; }
 .file { text-align:center; padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:400; }
 @media (max-width: 860px) { main { grid-template-columns:1fr; } }
+.check-row { display:grid; grid-template-columns:auto 1fr; gap:4px 8px; align-items:center; }
+.check-row input { width:auto; margin:0; }
+.check-row small { grid-column:2; }
