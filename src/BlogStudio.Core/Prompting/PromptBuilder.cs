@@ -27,7 +27,7 @@ public sealed class PromptBuilder
     public PromptBuilder(string basePrompt) => _basePrompt = basePrompt;
 
     public PromptPair Build(ThemePack theme, Track track, string? topic, IEnumerable<HistoryEntry> history,
-        string author, string? extra = null, PostInputs? inputs = null)
+        string author, string? extra = null, PostInputs? inputs = null, string? styleSample = null)
     {
         var system = new StringBuilder()
             .Append(_basePrompt
@@ -46,6 +46,14 @@ public sealed class PromptBuilder
         {
             system.Append("\n[테마 규칙]");
             foreach (var line in theme.Rules) system.Append("\n- ").Append(line);
+        }
+
+        if (!string.IsNullOrWhiteSpace(styleSample))
+        {
+            var sample = styleSample.Trim();
+            if (sample.Length > StyleSampleLimit) sample = sample[..StyleSampleLimit];
+            system.Append("\n\n[내 문체 예시 — 말투·문장 길이·어미·자주 쓰는 표현만 따라 하고, 내용·사실은 가져오지 않음]\n")
+                .Append(sample);
         }
 
         var recent = history.Where(h => h.TrackKey == track.Key)
@@ -77,6 +85,27 @@ public sealed class PromptBuilder
     /// <summary>
     /// 이미 쓴 글을 지시대로 고치기. 새로 쓰는 것보다 짧은 입력으로, 바뀌지 않은 부분은 그대로 둔다.
     /// </summary>
+    public const int StyleSampleLimit = 1500;
+
+    /// <summary>검색에 잘 걸리는 제목 후보 5개 (가벼운 모델용, 한 줄에 하나).</summary>
+    public static PromptPair BuildTitleIdeas(string title, IEnumerable<string> tags, string summary, string body) => new(
+        """
+        당신은 네이버·티스토리 블로그 제목 에디터입니다. 검색에 잘 걸리고 클릭하고 싶은 제목 후보 5개를 만듭니다.
+        - 사람들이 실제로 검색할 핵심 키워드를 제목 앞쪽에 둡니다.
+        - 각 40자 이내, 과장·낚시 금지, 글에 없는 내용 금지.
+        - 출력은 제목 5줄만 (번호·따옴표·설명 없이).
+        """,
+        $"[지금 제목] {title}\n[태그] {string.Join(", ", tags)}\n[요약] {summary}\n[본문 앞부분]\n{(body.Length > 1500 ? body[..1500] : body)}");
+
+    /// <summary>제목 후보 응답 정리: 번호·따옴표·빈 줄 제거, 40자 넘는 것 제외, 최대 5개.</summary>
+    public static IReadOnlyList<string> ParseTitleIdeas(string response) =>
+        response.Split('\n')
+            .Select(l => System.Text.RegularExpressions.Regex.Replace(l.Trim(), @"^(\d+[.)]\s*|[-*•]\s*)", "").Trim().Trim('"', '“', '”', '\'').Trim())
+            .Where(l => l.Length is > 0 and <= 40)
+            .Distinct()
+            .Take(5)
+            .ToList();
+
     public static PromptPair BuildRevision(string currentFileText, string instruction, string author) => new(
         $"""
         당신은 한국어 블로그 글의 편집자입니다. 블로그 주인 {(string.IsNullOrWhiteSpace(author) ? "글쓴이" : author)}의 글을 [고칠 점]대로 고칩니다.

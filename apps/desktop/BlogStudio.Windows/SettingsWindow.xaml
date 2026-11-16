@@ -27,6 +27,19 @@
                 <ComboBox ItemsSource="{Binding ModelOptions}" SelectedItem="{Binding ClaudeModel}" Height="32" Margin="0,0,0,4" />
                 <TextBlock Text="sonnet 권장 · opus는 품질↑ 사용량↑ · haiku는 가볍고 빠름" FontSize="11" Foreground="{StaticResource Muted}" Margin="0,0,0,20" />
 
+                <!-- 글 품질 -->
+                <TextBlock Text="글 품질" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" />
+                <TextBlock Text="내 문체 예시 (내가 직접 쓴 글 한두 문단)" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,2" />
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,4">
+                    말투·문장 길이·어미만 따라 해요. 내용은 가져오지 않아요. 최대 1,500자.
+                </TextBlock>
+                <TextBox Text="{Binding StyleSample, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource FieldBox}"
+                         Height="110" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" MaxLength="1500" Margin="0,0,0,10" />
+                <CheckBox Content="글 속 파이썬 코드를 이 PC에서 실행해 오류 찾기" IsChecked="{Binding CodeCheckEnabled}" Margin="0,0,0,2" />
+                <TextBlock FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="22,0,0,20">
+                    파이썬이 설치돼 있어야 해요. 임시 폴더에서 10초 안에만 돌리고, 파일·네트워크를 쓰는 코드는 실행하지 않아요.
+                </TextBlock>
+
                 <!-- 매일 자동 작성 -->
                 <StackPanel Visibility="{Binding CanScheduleDaily, Converter={StaticResource BoolToVis}}" Margin="0,0,0,20">
                     <TextBlock Text="매일 자동 작성" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" />

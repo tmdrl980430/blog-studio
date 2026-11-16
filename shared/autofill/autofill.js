@@ -3,7 +3,9 @@
 // 클릭·붙여넣기·타이핑은 앱이 진짜 입력(DevTools Input 이벤트)으로 보내고,
 // 이 스크립트는 "어디를 눌러야 하는지" 위치만 찾아 준다. 발행 버튼은 절대 누르지 않는다.
 //
-// 에디터 화면이 바뀌어 못 찾으면 아래 SELECTORS 만 고치면 된다 (앱 재빌드 없이 shared\autofill 수정 가능).
+// 에디터 화면이 바뀌어 못 찾으면 아래 SELECTORS 만 고치고 version 을 올려 main 에 머지하면 된다.
+// 앱은 자동 채우기 창을 열 때 GitHub main 의 이 파일을 받아 쓴다 (api 가 같고 version 이 더 클 때만).
+// api 는 앱이 부르는 함수 목록이 바뀔 때만 올린다 — 올리면 예전 앱은 새 파일을 받지 않는다.
 (() => {
   const SELECTORS = {
     tistory: {
@@ -96,7 +98,8 @@
   }
 
   window.__bs = {
-    version: 1,
+    api: 2,
+    version: 2,
     platform,
 
     state() {
@@ -192,6 +195,33 @@
         selectAll(el);
       }
       return pt;
+    },
+
+    // 채운 결과 다시 읽기 (앱이 제대로 들어갔는지 확인)
+    readBack() {
+      const s = SELECTORS[platform()];
+      const t = find(s.title);
+      const ed = tinymceEditor();
+      const bodyEl = ed ? ed.getBody() : find(s.body) && (find(s.body).closest('.se-content, .se-main-container') || find(s.body));
+      const text = bodyEl ? (bodyEl.innerText || bodyEl.textContent || '') : '';
+      return {
+        title: t ? (t.value !== undefined ? t.value : t.innerText || '').trim() : '',
+        bodyLength: text.replace(/\s/g, '').length,
+        images: bodyEl ? bodyEl.querySelectorAll('img').length : 0,
+      };
+    },
+
+    // 진단: 각 선택자가 몇 개 보이는지 (실패했을 때 무엇이 바뀌었는지 찾기용)
+    diagnose() {
+      const p = platform();
+      const out = { platform: p, url: location.href, frames: docs().length, tinymce: !!tinymceEditor(), selectors: {} };
+      for (const [k, list] of Object.entries(SELECTORS[p])) {
+        out.selectors[k] = (list || []).map(sel => ({
+          sel, count: docs().reduce((n, d) => n + d.querySelectorAll(sel).length, 0),
+          visible: !!docs().some(d => [...d.querySelectorAll(sel)].some(visible)),
+        }));
+      }
+      return out;
     },
 
     tagsPoint() {
