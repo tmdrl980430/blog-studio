@@ -26,6 +26,12 @@ public sealed record AutoFillPayload(
 public interface IAutoFillLauncher
 {
     void Open(AutoFillPayload payload);
+
+    /// <summary>
+    /// 자동 발행: 채우기를 모두 마치면 발행까지 누른다. 발행이 확인되면 true.
+    /// 지원하지 않는 기기는 false (아무것도 하지 않음).
+    /// </summary>
+    Task<bool> PublishAsync(AutoFillPayload payload) => Task.FromResult(false);
 }
 
 /// <summary>매일 정해진 시각에 앱을 "--auto-generate"로 실행 (Windows: 작업 스케줄러).</summary>

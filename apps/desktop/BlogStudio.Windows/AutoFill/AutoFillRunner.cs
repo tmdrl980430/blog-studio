@@ -9,7 +9,7 @@ namespace BlogStudio.Windows.AutoFill;
 
 /// <summary>
 /// 글쓰기 화면을 채우는 순서. 위치 찾기는 autofill.js, 클릭·타이핑·붙여넣기는 DevTools Input 이벤트
-/// (사람이 누른 것과 같은 진짜 입력)로 보낸다. 발행 버튼은 누르지 않는다.
+/// (사람이 누른 것과 같은 진짜 입력)로 보낸다. 발행 버튼은 자동 발행(RunAndPublishAsync)일 때만 누른다.
 /// </summary>
 public sealed class AutoFillRunner
 {
@@ -301,5 +301,76 @@ public sealed class AutoFillRunner
         if (await ReadBackAsync() is { } final)
             _log($"확인: 본문 {final.BodyLength:N0}자 · 이미지 {final.Images}장");
         _log("완료 — 내용을 확인하고 블로그의 '발행'을 직접 눌러 주세요");
+    }
+
+    // ---------- 자동 발행 (설정에서 켰을 때만) ----------
+
+    /// <summary>
+    /// 채우기를 하나도 빠짐없이 마쳤을 때만 발행까지 누른다. 어느 단계든 실패하면 발행하지 않고 false
+    /// (창은 열어 두어 사용자가 이어서 할 수 있게).
+    /// </summary>
+    public async Task<bool> RunAndPublishAsync(CancellationToken ct)
+    {
+        var state = await WaitReadyAsync(TimeSpan.FromSeconds(40), ct);
+        if (state.Login) { _log("로그인이 풀려 있어 자동 발행을 멈췄어요 — 이 창에서 로그인해 두면 다음부터 이어져요"); return false; }
+        if (state.Blocked) return await Fail("publish-blocked", "에디터에 팝업이 떠 있어 자동 발행을 멈췄어요");
+        if (!state.Title && !state.Body) return await Fail("page", "글쓰기 화면을 찾지 못해 자동 발행을 멈췄어요");
+
+        if (!await FillTitleAsync() || !await FillBodyAsync()) return false;
+        if (_post.ImagePaths.Count > 0 && await FillImagesAsync(ct) < _post.ImagePaths.Count)
+            return await Fail("publish-images", "이미지를 모두 넣지 못해 발행하지 않았어요 — 확인 후 직접 발행해 주세요");
+        if (_post.Platform == BlogPlatform.Tistory && _post.Tags.Count > 0 && !await FillTagsAsync())
+            return await Fail("publish-tags", "태그를 넣지 못해 발행하지 않았어요");
+        if (await ReadBackAsync() is { BodyLength: < 300 })
+            return await Fail("publish-body", "본문이 너무 짧게 읽혀 발행하지 않았어요");
+        return await PublishAsync(ct);
+    }
+
+    private async Task<bool> PublishAsync(CancellationToken ct)
+    {
+        if (await PointWithRetry("publishPoint('open')") is not { } open)
+            return await Fail("publish-open", "발행 버튼을 찾지 못했어요 — 직접 발행해 주세요");
+        await ClickAsync(open);
+        await Task.Delay(1500, ct);
+
+        if (_post.Platform == BlogPlatform.Naver && _post.Tags.Count > 0)
+        {
+            if (await PointWithRetry("publishTagsPoint()", 2) is { } tags)
+            {
+                await ClickAsync(tags);
+                foreach (var tag in _post.Tags)
+                {
+                    await TypeAsync(tag);
+                    await KeyAsync("Enter", "Enter", 0x0D, text: "\r");
+                    await Task.Delay(120, ct);
+                }
+                _log("태그 ✓ (발행 창)");
+            }
+            else _log("발행 창의 태그 칸을 찾지 못해 태그 없이 발행해요");
+        }
+        if (_post.Platform == BlogPlatform.Tistory && await PointWithRetry("publishPoint('public')", 2) is { } pub)
+            await ClickAsync(pub);
+
+        if (await PointWithRetry("publishPoint('confirm')") is not { } confirm)
+            return await Fail("publish-confirm", "발행 확인 버튼을 찾지 못했어요 — 열린 발행 창에서 직접 눌러 주세요");
+        await ClickAsync(confirm);
+
+        for (var i = 0; i < 40; i++)
+        {
+            await Task.Delay(500, ct);
+            try
+            {
+                if ((await Js("window.__bs.published()"))?.GetValue<bool>() == true)
+                {
+                    _log("발행 ✓ " + _web.Source);
+                    return true;
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+            {
+                // 발행 직후 페이지가 바뀌는 중 — 다시 확인
+            }
+        }
+        return await Fail("publish-done", "발행이 끝났는지 확인하지 못했어요 — 블로그에서 확인해 주세요 (다시 올리지 않아요)");
     }
 }

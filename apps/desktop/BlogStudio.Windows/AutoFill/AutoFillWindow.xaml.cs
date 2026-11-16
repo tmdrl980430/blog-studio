@@ -12,12 +12,15 @@ public partial class AutoFillWindow : Window
     private CancellationTokenSource? _cts;
     private string _diagnostics = "";
     private static readonly System.Net.Http.HttpClient Http = new();
+    private readonly TaskCompletionSource<bool>? _published;
 
-    public AutoFillWindow(AutoFillPayload post, IClipboardService clipboard)
+    /// <param name="published">자동 발행일 때: 발행이 확인되면 true, 실패·창 닫힘이면 false.</param>
+    public AutoFillWindow(AutoFillPayload post, IClipboardService clipboard, TaskCompletionSource<bool>? published = null)
     {
         InitializeComponent();
         _post = post;
         _clipboard = clipboard;
+        _published = published;
         var blog = post.Platform == BlogPlatform.Naver ? "네이버 블로그" : "티스토리";
         Title = $"자동 채우기 · {blog}";
         Heading.Text = $"{blog}에 채우기";
@@ -31,7 +34,7 @@ public partial class AutoFillWindow : Window
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlogStudio", "WebView2"),
         };
         Loaded += async (_, _) => await StartAsync();
-        Closing += (_, _) => _cts?.Cancel();
+        Closing += (_, _) => { _cts?.Cancel(); _published?.TrySetResult(false); };
     }
 
     private async Task StartAsync()
@@ -44,6 +47,7 @@ public partial class AutoFillWindow : Window
         {
             Write("앱 안 브라우저를 시작하지 못했어요: " + ex.Message);
             RunAllButton.IsEnabled = false;
+            _published?.TrySetResult(false);
             return;
         }
         var data = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BlogStudio");
@@ -57,6 +61,22 @@ public partial class AutoFillWindow : Window
         Web.CoreWebView2.NewWindowRequested += (_, e) => { e.Handled = true; Web.CoreWebView2.Navigate(e.Uri); };
         Web.CoreWebView2.Navigate(_post.WriteUrl);
         Write("글쓰기 화면을 여는 중…");
+        if (_published is not null) await AutoPublishAsync();
+    }
+
+    private async Task AutoPublishAsync()
+    {
+        Write("자동 발행: 채우기 → 발행");
+        var ok = false;
+        await RunAsync(async (r, ct) => ok = await r.RunAndPublishAsync(ct));
+        _published!.TrySetResult(ok);
+        if (!ok)
+        {
+            Write("자동 발행을 멈췄어요 — 이 창에서 확인 후 직접 발행할 수 있어요");
+            return;
+        }
+        await Task.Delay(3000);
+        Close();
     }
 
     private void Write(string line)
@@ -127,4 +147,12 @@ public sealed class WpfAutoFillLauncher : IAutoFillLauncher
 
     public void Open(AutoFillPayload payload) =>
         new AutoFillWindow(payload, _clipboard) { Owner = Application.Current.MainWindow }.Show();
+
+    public Task<bool> PublishAsync(AutoFillPayload payload)
+    {
+        var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        // 매일 자동 작성은 메인 창을 최소화한 채 돌므로 소유 창으로 두지 않는다 (같이 숨겨지지 않게)
+        new AutoFillWindow(payload, _clipboard, done) { ShowActivated = false }.Show();
+        return done.Task;
+    }
 }

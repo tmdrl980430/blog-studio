@@ -166,7 +166,73 @@ public sealed partial class MainViewModel : ObservableObject
             return false;
         }
         await GenerateCommand.ExecuteAsync(null);
-        return PostReady && _store.HasPostOn(_today(), _theme.Tracks);
+        var made = PostReady && _store.HasPostOn(_today(), _theme.Tracks);
+        if (made) await RunAutoStaffAsync();
+        return made;
+    }
+
+    /// <summary>
+    /// 자동 작성 다음 단계: 코드 오류 고치기 → 편집자 검수 → 의견 반영(한 번) → 발행 기준 → (설정에서 켰으면) 자동 발행.
+    /// 결과는 auto-log.txt에 한 줄씩 남긴다.
+    /// </summary>
+    private async Task RunAutoStaffAsync()
+    {
+        if (_post is null) return;
+        var title = _post.Title;
+        if (HasCodeErrors) await FixCodeErrorsCommand.ExecuteAsync(null);
+
+        await ReviewWithEditorCommand.ExecuteAsync(null);
+        var verdict = _review?.Verdict;
+        var notesLeft = false;
+        if (_review is { NeedsFix: true } && verdict != StaffPrompts.Rewrite)
+        {
+            var before = _post;
+            await ApplyEditorNotesCommand.ExecuteAsync(null);
+            notesLeft = ReferenceEquals(before, _post);   // 고치기에 실패하면 글이 그대로
+        }
+
+        var gate = PublishGate.Check(_post!, verdict, notesLeft, HasCodeErrors);
+        string result;
+        if (!_settings.AutoPublishEnabled) result = gate.Reason + " · 자동 발행 꺼짐";
+        else if (!gate.Ok) result = "발행 보류 — " + gate.Reason;
+        else result = await AutoPublishAsync();
+        AppendAutoLog($"{title} | 편집자 {verdict ?? "-"} | {result}");
+        StatusText = "매일 자동 작성: " + result;
+    }
+
+    private async Task<string> AutoPublishAsync()
+    {
+        if (_autoFill is null || _post is null) return "이 기기에서는 자동 발행을 못 해요";
+        var targets = new List<(BlogPlatform Platform, string? Url, string Name)>();
+        if (_settings.AutoPublishTistory) targets.Add((BlogPlatform.Tistory, BlogTargets.TistoryWriteUrl(_settings.TistoryName), "티스토리"));
+        if (_settings.AutoPublishNaver) targets.Add((BlogPlatform.Naver, BlogTargets.NaverWriteUrl(_settings.NaverBlogId), "네이버"));
+
+        var results = new List<string>();
+        foreach (var (platform, url, name) in targets)
+        {
+            if (url is null) { results.Add($"{name} 주소 없음"); continue; }
+            StatusText = $"매일 자동 작성: {name}에 발행 중…";
+            var ok = await _autoFill.PublishAsync(BuildPayload(platform, url));
+            if (ok)
+            {
+                if (platform == BlogPlatform.Naver) IsPublishedNaver = true;
+                else IsPublishedTistory = true;
+            }
+            results.Add(ok ? $"{name} 발행 ✓" : $"{name} 발행 실패 (창에서 확인)");
+        }
+        return results.Count == 0 ? "발행할 블로그를 고르지 않음" : string.Join(", ", results);
+    }
+
+    private void AppendAutoLog(string line)
+    {
+        try
+        {
+            File.AppendAllText(Path.Combine(_store.Root, "auto-log.txt"), $"{DateTime.Now:yyyy-MM-dd HH:mm} {line}\n");
+        }
+        catch (IOException)
+        {
+            // 기록 실패는 무시
+        }
     }
 
     [ObservableProperty]
@@ -1098,10 +1164,12 @@ public sealed partial class MainViewModel : ObservableObject
             StatusText = $"설정에 {settingName}을 넣어야 자동 채우기를 쓸 수 있어요";
             return;
         }
-        _autoFill.Open(new AutoFillPayload(platform, url, _post.Title, _post.Tags, _bodyHtml,
-            Images.OrderBy(i => i.Number).Select(i => i.FullPath).ToList()));
+        _autoFill.Open(BuildPayload(platform, url));
         StatusText = $"{blog} 글쓰기 창을 열었어요 — '모두 채우기' 후 내용을 확인하고 직접 발행하세요";
     }
+
+    private AutoFillPayload BuildPayload(BlogPlatform platform, string url) =>
+        new(platform, url, _post!.Title, _post.Tags, _bodyHtml, Images.OrderBy(i => i.Number).Select(i => i.FullPath).ToList());
 
     private void CopyBodyAndOpen(string? url, string blog)
     {

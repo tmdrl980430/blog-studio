@@ -96,3 +96,27 @@ public class StaffTests
         Assert.Equal(StaffPrompts.NoteMax, many.Notes.Count);
     }
 }
+
+public class PublishGateTests
+{
+    private static PostDraft Post(string body, string title = "파이썬 deque 시간복잡도 정리") =>
+        new(title, new[] { "파이썬" }, "", body, "t", "algorithm", new DateOnly(2026, 11, 11));
+
+    private static readonly string Body = string.Concat(Enumerable.Repeat("deque는 양쪽 끝 연산이 상수 시간입니다. ", 60));
+
+    [Fact]
+    public void Passes_only_clean_reviewed_posts()
+    {
+        Assert.True(PublishGate.Check(Post(Body), StaffPrompts.NeedsEdit, notesLeft: false, hasCodeErrors: false).Ok);
+        Assert.False(PublishGate.Check(Post(Body), null, false, false).Ok);
+        Assert.False(PublishGate.Check(Post(Body), StaffPrompts.Rewrite, false, false).Ok);
+        Assert.False(PublishGate.Check(Post(Body), StaffPrompts.Publishable, notesLeft: true, false).Ok);
+        Assert.False(PublishGate.Check(Post(Body), StaffPrompts.Publishable, false, hasCodeErrors: true).Ok);
+
+        var unknown = PublishGate.Check(Post(Body + "\n가격은 (확인 필요)"), StaffPrompts.Publishable, false, false);
+        Assert.False(unknown.Ok);
+        Assert.Contains("확인 필요", unknown.Reason);
+        Assert.False(PublishGate.Check(Post(Body + "\n[사진 1: 외관]"), StaffPrompts.Publishable, false, false).Ok);
+        Assert.Contains("너무 짧음", PublishGate.Check(Post("짧은 글"), StaffPrompts.Publishable, false, false).Reason);
+    }
+}
