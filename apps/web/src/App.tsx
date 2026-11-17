@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadThemes, loadBasePrompt, colorFor, type ThemePack } from "./lib/themes";
 import { parsePost, tagLine, toFileText, type PostDraft } from "./lib/posts";
-import { resolveCategory } from "./lib/categories";
+import { matchCategory, resolveCategory } from "./lib/categories";
+import {
+  buildEditorReview, buildTopicIdeas, keywordRequest, loadStaffPrompt, parseEditorReview, parseTopicIdeas, revisionFromReview,
+  type EditorReview, type TopicIdea,
+} from "./lib/staff";
 import { buildPrompt, buildRevision } from "./lib/prompt";
 import { plan, planTrack, isoDate, DAY_LABELS, dayKey, type PlannedTopic } from "./lib/planner";
 import { toBlogHtml, extractFigures, copyRich } from "./lib/render";
@@ -12,6 +16,8 @@ import { SettingsDialog } from "./components/SettingsDialog";
 
 const THEMES = loadThemes();
 const BASE = loadBasePrompt();
+const PLANNER = loadStaffPrompt("planner");
+const EDITOR = loadStaffPrompt("editor");
 const TECH = THEMES.tech;
 const LIFE = THEMES.life as ThemePack | undefined;
 
@@ -43,6 +49,9 @@ export default function App() {
   const [current, setCurrent] = useState<SavedPost | null>(null);
   const [images, setImages] = useState<ImageItem[]>([]);
   const [revision, setRevision] = useState("");
+  const [ideas, setIdeas] = useState<TopicIdea[]>([]);
+  const [picked, setPicked] = useState<TopicIdea | null>(null); // 기획자 추천 주제 (이번 한 편만)
+  const [review, setReview] = useState<EditorReview | null>(null);
   const [showSettings, setShowSettings] = useState(() => !load().settings.apiKey);
   const abort = useRef<AbortController | null>(null);
 
@@ -55,6 +64,13 @@ export default function App() {
     return plan(TECH, data.settings.schedule, today, data.progress);
   }, [cat, today, data.progress, data.settings.schedule]);
   const theme = cat.memo && LIFE ? LIFE : TECH;
+
+  // 주제 종류·날짜가 바뀌면 기획자 추천은 버린다 / 다른 글을 보면 편집자 의견도 버린다
+  useEffect(() => {
+    setIdeas([]);
+    setPicked(null);
+  }, [category, today]);
+  useEffect(() => setReview(null), [current?.id]);
 
   // 글이 바뀌면 썸네일·그림 이미지와 미리보기 다시 만들기
   const view = useMemo(() => {
@@ -110,39 +126,82 @@ export default function App() {
       if (!planned) return;
       setStatus("Claude가 쓰는 중… (1~2분)");
       const fromMemo = cat.memo && memo.trim().length > 0;
+      const usePick = !fromMemo && picked !== null;
+      const topicText = usePick ? picked.topic : planned.topic;
       const prompt = buildPrompt(
-        BASE, theme, planned.track, planned.topic,
+        BASE, theme, planned.track, topicText,
         data.posts.map((p) => ({ date: p.date, track: p.track, title: p.title })),
         data.settings.author,
-        { extra, inputs: cat.memo ? { name: memoName, memo } : undefined, styleSample: data.settings.styleSample },
+        {
+          extra: usePick ? keywordRequest(extra, picked.keyword) : extra,
+          inputs: cat.memo ? { name: memoName, memo } : undefined,
+          styleSample: data.settings.styleSample,
+        },
       );
       const r = await generate(data.settings.apiKey, data.settings.model, prompt, { signal });
-      const topic = fromMemo ? memoName.trim() || "메모 후기" : planned.topic ?? "(자동 선정)";
+      const topic = fromMemo ? memoName.trim() || "메모 후기" : topicText ?? "(자동 선정)";
       let post: PostDraft = parsePost(r.text, topic, planned.track.key, today);
-      if (!fromMemo && !planned.topic) post = { ...post, topic: post.title };
-      // 작가가 적은 카테고리(기본 체계 안) > 트랙 기본값. 데스크톱과 같은 순서
-      post = { ...post, category: resolveCategory(post.category, post.track) };
-      const next = addPost(data, post, !fromMemo && planned.topic !== null);
+      if (!fromMemo && !topicText) post = { ...post, topic: post.title };
+      // 기획자가 고른 카테고리 > 작가가 적은 카테고리(기본 체계 안) > 트랙 기본값. 데스크톱과 같은 순서
+      const written = usePick && matchCategory(picked.category) ? picked.category : post.category;
+      post = { ...post, category: resolveCategory(written, post.track) };
+      // 기획자 주제는 커리큘럼 진도에 세지 않는다
+      const next = addPost(data, post, !fromMemo && planned.topic !== null && !usePick);
       setData(next);
       setCurrent(next.posts.at(-1)!);
       setMemo("");
       setMemoName("");
       setExtra("");
+      setIdeas([]);
+      setPicked(null);
       setStatus(`완료 · 입력 ${r.inputTokens.toLocaleString()} / 출력 ${r.outputTokens.toLocaleString()} 토큰`);
     });
 
-  const onRevise = () =>
+  const reviseWith = (instruction: string) =>
     run(async (signal) => {
-      if (!current || !revision.trim()) return;
+      if (!current || !instruction.trim()) return;
       setStatus("고치는 중…");
-      const r = await generate(data.settings.apiKey, data.settings.model, buildRevision(toFileText(current), revision, data.settings.author), { signal });
+      const r = await generate(data.settings.apiKey, data.settings.model, buildRevision(toFileText(current), instruction, data.settings.author), { signal });
       const revised = parsePost(r.text, current.topic, current.track, current.date);
       const next = updatePost(data, current.id, { title: revised.title, tags: revised.tags, summary: revised.summary, body: revised.body });
       setData(next);
       setCurrent(next.posts.find((p) => p.id === current.id)!);
       setRevision("");
+      setReview(null);
       setStatus("고쳤어요");
     });
+  const onRevise = () => reviseWith(revision);
+
+  const onAskPlanner = () =>
+    run(async (signal) => {
+      if (!planned) return;
+      setStatus("기획자가 주제를 고르는 중…");
+      const prompt = buildTopicIdeas(PLANNER, theme, planned.track, data.posts.map((p) => ({ date: p.date, track: p.track, title: p.title })), extra);
+      const r = await generate(data.settings.apiKey, "haiku", prompt, { signal, maxTokens: 1000 });
+      const found = parseTopicIdeas(r.text);
+      setIdeas(found);
+      setStatus(found.length ? "추천 주제를 눌러 오늘 주제로 정하세요" : "기획자가 주제를 내지 못했어요");
+    });
+
+  const pickIdea = (idea: TopicIdea) => {
+    setPicked(idea);
+    setIdeas([]);
+    setStatus("오늘 주제를 바꿨어요" + (idea.category ? ` (카테고리 ${idea.category})` : "") + " — 글 만들기를 누르면 작가가 써요");
+  };
+
+  const onReview = () =>
+    run(async (signal) => {
+      if (!current) return;
+      setStatus("편집자가 검수하는 중… (1분 안팎)");
+      const r = await generate(data.settings.apiKey, data.settings.model, buildEditorReview(EDITOR, toFileText(current), data.settings.author), { signal, maxTokens: 2000 });
+      const result = parseEditorReview(r.text);
+      setReview(result);
+      setStatus(result.notes.length ? `편집자 의견 ${result.notes.length}개 — "의견대로 고치기"로 반영할 수 있어요` : "편집자: 발행해도 좋아요");
+    });
+
+  const applyReview = () => {
+    if (review?.notes.length) reviseWith(revisionFromReview(review));
+  };
 
   const togglePublished = (blog: string) => {
     if (!current) return;
@@ -199,8 +258,26 @@ export default function App() {
 
           <div className="card">
             <div className="muted">{today} {DAY_LABELS[dayKey(today)]}요일{planned ? ` · ${planned.track.name}` : ""}</div>
-            <div className="topic">{planned ? planned.topic ?? "주제를 다 썼어요 — Claude가 골라요" : "오늘은 쉬는 날이에요"}</div>
+            <div className="topic">
+              {!planned ? "오늘은 쉬는 날이에요" : picked && !(cat.memo && memo.trim()) ? picked.topic : planned.topic ?? "주제를 다 썼어요 — Claude가 골라요"}
+            </div>
+            {planned && picked && <div className="muted">기획자 추천{picked.keyword ? ` · ${picked.keyword}` : ""}{picked.category ? ` · ${picked.category}` : ""}</div>}
           </div>
+          {planned && (
+            <button className="secondary" onClick={onAskPlanner} disabled={busy}>기획자에게 주제 추천받기</button>
+          )}
+          {ideas.length > 0 && (
+            <ul className="ideas">
+              {ideas.map((i) => (
+                <li key={i.topic}>
+                  <button className="link" onClick={() => pickIdea(i)}>
+                    <span>{i.topic}</span>
+                    <small>{[i.keyword, i.reason, i.category].filter(Boolean).join(" · ")}</small>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {cat.memo && (
             <>
@@ -247,7 +324,19 @@ export default function App() {
               <div className="revise">
                 <input value={revision} placeholder="고칠 점 (예: 도입부를 두 문장으로)" onChange={(e) => setRevision(e.target.value)} disabled={busy} />
                 <button onClick={onRevise} disabled={busy || !revision.trim()}>Claude로 고치기</button>
+                <button className="secondary" onClick={onReview} disabled={busy}>편집자 검수</button>
               </div>
+              {review && (
+                <div className="review" role="region" aria-label="편집자 검수">
+                  <strong>판정: {review.verdict}</strong>
+                  {review.notes.length > 0 && (
+                    <>
+                      <ul>{review.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+                      <button className="secondary" onClick={applyReview} disabled={busy}>의견대로 고치기</button>
+                    </>
+                  )}
+                </div>
+              )}
               {images.length > 0 && (
                 <div className="images">
                   {images.map((img) => (
