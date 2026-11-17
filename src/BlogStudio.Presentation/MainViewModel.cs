@@ -1112,22 +1112,33 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>같은 모드를 다시 눌러도 항상 다시 그린다 (이전엔 값이 같으면 아무 일도 없었음).</summary>
     [RelayCommand(CanExecute = nameof(CanCopy))]
-    private void ShowRendered()
-    {
-        PreviewMode = PreviewMode.Rendered;
-        RenderPreview();
-        PreviewRefreshRequested?.Invoke(this, EventArgs.Empty);
-        StatusText = "블로그 보기";
-    }
+    private void ShowRendered() => SwitchPreview(PreviewMode.Rendered, "블로그 보기");
 
     [RelayCommand(CanExecute = nameof(CanCopy))]
-    private void ShowMarkdown()
+    private void ShowMarkdown() => SwitchPreview(PreviewMode.Markdown, "마크다운 보기");
+
+    /// <summary>
+    /// 미리보기 모드 전환. 화면에 아무 변화가 없어 보이는 경우(직접 편집 중, 앱 안 미리보기를 못 쓸 때)는
+    /// 이유와 할 일을 상태 바에 알려 준다 (BACKLOG "블로그 보기 버튼이 동작하지 않음").
+    /// </summary>
+    private void SwitchPreview(PreviewMode mode, string label)
     {
-        PreviewMode = PreviewMode.Markdown;
+        PreviewMode = mode;
         RenderPreview();
+        if (IsEditing)
+        {
+            StatusText = $"직접 편집 중이에요 — 저장하거나 취소하면 {label}로 보여요";
+            return;
+        }
         PreviewRefreshRequested?.Invoke(this, EventArgs.Empty);
-        StatusText = "마크다운 보기";
+        StatusText = string.IsNullOrEmpty(PreviewUnavailableMessage)
+            ? label
+            : "앱 안 미리보기를 쓸 수 없어요 — '브라우저로 열기'로 확인해 주세요";
     }
+
+    /// <summary>앱 안 미리보기(WebView2)가 페이지를 불러오지 못했을 때 (창이 알려 줌).</summary>
+    public void ReportPreviewLoadFailed(string reason) =>
+        StatusText = $"미리보기를 불러오지 못했어요 ({reason}) — '브라우저로 열기'로 확인해 주세요";
 
     /// <summary>앱 안 미리보기가 안 될 때를 대비해 기본 브라우저로 연다.</summary>
     [RelayCommand(CanExecute = nameof(CanCopy))]

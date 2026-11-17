@@ -38,6 +38,12 @@ public partial class MainWindow : Window
             try
             {
                 await Preview.EnsureCoreWebView2Async();
+                // 빈 화면만 남지 않게 불러오기 실패를 상태 바에 알림 (about:blank 등 자체 이동은 제외)
+                Preview.CoreWebView2.NavigationCompleted += (_, e) =>
+                {
+                    if (!e.IsSuccess && e.WebErrorStatus != Microsoft.Web.WebView2.Core.CoreWebView2WebErrorStatus.OperationCanceled)
+                        _vm.ReportPreviewLoadFailed(e.WebErrorStatus.ToString());
+                };
                 _webReady = true;
                 ShowPreview();
             }
@@ -65,7 +71,9 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainViewModel.PreviewHtml))
             ShowPreview();
         else if (e.PropertyName == nameof(MainViewModel.IsEditing))
-            Preview.Visibility = _vm.IsEditing ? Visibility.Hidden : Visibility.Visible;
+            // 편집을 끝내도 WebView2를 못 쓰는 상태면 안내 화면을 덮지 않도록 숨긴 채로 둔다
+            Preview.Visibility = _vm.IsEditing ? Visibility.Hidden
+                : PreviewFallback.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void ShowPreview()

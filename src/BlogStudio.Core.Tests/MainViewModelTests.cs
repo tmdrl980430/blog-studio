@@ -393,6 +393,39 @@ public class MainViewModelTests
         Assert.StartsWith("file:", browser.Url);
         Assert.Contains("<h2 style=", File.ReadAllText(Path.Combine(store.Root, "preview.html")));
     }
+
+    [Fact]
+    public async Task Blog_view_explains_why_nothing_changes()
+    {
+        var store = new LocalStore(Directory.CreateTempSubdirectory("bs-vm3-").FullName);
+        var vm = new MainViewModel(Fixtures.Themes(), store, new FakeProvider(), new FakeClipboard(), new FakeBrowser(),
+            () => new DateOnly(2026, 11, 11));
+        var redraws = 0;
+        vm.PreviewRefreshRequested += (_, _) => redraws++;
+        await vm.InitializeCommand.ExecuteAsync(null);
+        await vm.GenerateCommand.ExecuteAsync(null);
+
+        // 직접 편집 중에는 미리보기가 가려져 있으므로 다시 그리지 않고 이유를 알림
+        vm.StartEditCommand.Execute(null);
+        vm.ShowMarkdownCommand.Execute(null);
+        Assert.Equal(0, redraws);
+        Assert.Contains("직접 편집 중", vm.StatusText);
+        Assert.True(vm.IsMarkdownMode);                              // 모드는 바꿔 두어 편집을 끝내면 그 모드로 보임
+        vm.CancelEditCommand.Execute(null);
+
+        vm.ShowRenderedCommand.Execute(null);
+        Assert.Equal(1, redraws);
+        Assert.Equal("블로그 보기", vm.StatusText);
+
+        // WebView2를 못 쓰면 브라우저로 열기를 안내
+        vm.PreviewUnavailableMessage = "WebView2 런타임이 없어요.";
+        vm.ShowRenderedCommand.Execute(null);
+        Assert.Contains("브라우저로 열기", vm.StatusText);
+
+        vm.ReportPreviewLoadFailed("FileNotFound");
+        Assert.Contains("FileNotFound", vm.StatusText);
+        Assert.Contains("브라우저로 열기", vm.StatusText);
+    }
 }
 
 public class ClaudeSetupFlowTests
