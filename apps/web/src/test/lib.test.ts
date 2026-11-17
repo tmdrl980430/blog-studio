@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { loadThemes, loadBasePrompt, colorFor } from "../lib/themes";
 import { parsePost, toFileText } from "../lib/posts";
+import { parseCategory, matchCategory, resolveCategory, categoryForTrack, formatCategory } from "../lib/categories";
 import { buildPrompt, buildRevision, AUTO_TOPIC } from "../lib/prompt";
 import { plan, planTrack, dayKey } from "../lib/planner";
 import { toBlogHtml, extractFigures } from "../lib/render";
@@ -35,6 +36,43 @@ describe("parsePost", () => {
   });
   it("머리말이 없으면 알려 준다", () => {
     expect(() => parsePost("그냥 글", "t", "a", "2026-11-16")).toThrow(/머리말/);
+  });
+  it("카테고리 없는 예전 글은 category 줄 없이 그대로 쓴다", () => {
+    const p = parsePost(RESPONSE, "BFS", "algorithm", "2026-11-16");
+    expect(p.category).toBe("");
+    expect(toFileText(p)).not.toContain("category:");
+    const { category: _drop, ...old } = p; // 예전 브라우저 데이터 (category 필드 없음)
+    expect(toFileText(old)).toBe(toFileText(p));
+  });
+  it("category를 읽고 데스크톱과 같은 자리에 쓴다", () => {
+    const text = `---\ntitle: "제목"\ntags: [a]\nsummary: "요약"\ntopic: "주제"\ntrack: cs\ncategory: "개발>CS 기초"\ndate: 2026-11-17\n---\n\n본문\n`;
+    const p = parsePost(text, "주제", "cs", "2026-11-17");
+    expect(p.category).toBe("개발 > CS 기초");
+    expect(toFileText(p)).toContain('track: cs\ncategory: "개발 > CS 기초"\ndate: 2026-11-17\n');
+    expect(parsePost(toFileText(p), "주제", "cs", "2026-11-17")).toEqual({ ...p, thumbnail: [] });
+  });
+});
+
+describe("categories", () => {
+  it("구분자·따옴표·공백 차이를 맞춰 읽는다", () => {
+    expect(parseCategory("개발 / CS 기초")).toEqual({ parent: "개발", child: "CS 기초" });
+    expect(parseCategory(" '생활' ")).toEqual({ parent: "생활", child: "" });
+    expect(parseCategory("> CS 기초")).toEqual({ parent: "CS 기초", child: "" });
+    expect(parseCategory("  ")).toBeNull();
+    expect(formatCategory({ parent: "개발", child: "C#·Windows" })).toBe("개발 > C#·Windows");
+  });
+  it("목록 안에서만 찾고 없으면 새로 만들지 않는다", () => {
+    expect(formatCategory(matchCategory("개발>CS기초")!)).toBe("개발 > CS 기초");
+    expect(formatCategory(matchCategory("맛집·카페")!)).toBe("생활 > 맛집·카페");
+    expect(matchCategory("개발 > 게임")).toBeNull();
+    expect(matchCategory("")).toBeNull();
+  });
+  it("목록 밖이면 트랙 기본값, 모르는 트랙이면 빈 값", () => {
+    expect(resolveCategory("생활 > 여행·일상", "cs")).toBe("생활 > 여행·일상");
+    expect(resolveCategory("개발 > 게임", "algorithm")).toBe("개발 > 알고리즘·코테");
+    expect(resolveCategory("", "product")).toBe("생활 > 제품 리뷰");
+    expect(resolveCategory("", "unknown")).toBe("");
+    expect(categoryForTrack("fashion", [{ parent: "생활", child: "맛집·카페" }])).toBeNull();
   });
 });
 

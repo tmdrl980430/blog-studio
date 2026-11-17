@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadThemes, loadBasePrompt, colorFor, type ThemePack } from "./lib/themes";
 import { parsePost, tagLine, toFileText, type PostDraft } from "./lib/posts";
+import { resolveCategory } from "./lib/categories";
 import { buildPrompt, buildRevision } from "./lib/prompt";
 import { plan, planTrack, isoDate, DAY_LABELS, dayKey, type PlannedTopic } from "./lib/planner";
 import { toBlogHtml, extractFigures, copyRich } from "./lib/render";
@@ -119,6 +120,8 @@ export default function App() {
       const topic = fromMemo ? memoName.trim() || "메모 후기" : planned.topic ?? "(자동 선정)";
       let post: PostDraft = parsePost(r.text, topic, planned.track.key, today);
       if (!fromMemo && !planned.topic) post = { ...post, topic: post.title };
+      // 작가가 적은 카테고리(기본 체계 안) > 트랙 기본값. 데스크톱과 같은 순서
+      post = { ...post, category: resolveCategory(post.category, post.track) };
       const next = addPost(data, post, !fromMemo && planned.topic !== null);
       setData(next);
       setCurrent(next.posts.at(-1)!);
@@ -262,6 +265,7 @@ export default function App() {
               <article>
                 <p className="muted">{current.topic} · {current.date}</p>
                 <h1>{current.title}</h1>
+                {current.category ? <p className="muted">카테고리: {current.category}</p> : null}
                 <p className="tags">{tagLine(current)}</p>
                 {/* toBlogHtml 안에서 DOMPurify로 소독한 HTML */}
                 <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
