@@ -38,6 +38,9 @@ public static class StaffPrompts
 
     private static readonly Regex ListMark = new(@"^(\d+[.)]\s*|[-*•]\s*)");
 
+    /// <summary>줄 앞 번호("1.", "2)")나 글머리표("-", "*", "•")를 뗀다.</summary>
+    internal static string StripListMark(string line) => ListMark.Replace(line, "").Trim();
+
     /// <summary>
     /// 기획자: 트랙 안에서 오늘 쓸 주제 후보. 이전 글 제목은 최근 15편만 보낸다.
     /// 카테고리 목록(없으면 기본 체계)과 트랙 기본 카테고리를 함께 보내 주제마다 하나를 고르게 한다 (이슈 #19).
