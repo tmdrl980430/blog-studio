@@ -8,5 +8,6 @@
 | `prompts/base.md` | 작가 | 글 쓰기 (기존 공통 규칙) |
 | `planner.md` | 기획자 | 오늘 쓸 주제 후보 5개 |
 | `editor.md` | 편집자 | 발행 전 검수 의견 (판정 + 고칠 점) |
+| `analyst.md` | 성과 분석가 | 통계로 다음에 힘줄 트랙·주제 방향 (최대 3개) |
 
 Claude 스킬 `blog-planner`·`blog-writer`·`blog-editor`와 같은 기준을 쓴다. 한쪽을 고치면 다른 쪽도 맞춘다.
