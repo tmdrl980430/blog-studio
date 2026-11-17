@@ -30,6 +30,39 @@
                 <Border Style="{StaticResource Tile}"><StackPanel><TextBlock Text="티스토리에 올림" FontSize="12" Foreground="{StaticResource Muted}" /><TextBlock x:Name="Tistory" FontSize="22" FontWeight="Bold" Foreground="#EB531F" /></StackPanel></Border>
             </UniformGrid>
 
+            <!-- AI 직원: 성과 분석가 — 트랙별 기록으로 다음에 힘줄 트랙 최대 3줄. 줄을 누르면 그 트랙으로 기획자 열기 -->
+            <Border x:Name="AnalystPanel" Style="{StaticResource Tile}" Margin="0,10,0,6">
+                <StackPanel>
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="취소" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                Command="{Binding AskAnalystCancelCommand}" />
+                        <Button DockPanel.Dock="Right" Content="분석가에게 묻기" Style="{StaticResource SecondaryButton}"
+                                ToolTip="트랙별 글 수·올림 표시·마지막 글 날짜로 다음에 힘줄 트랙을 추천받아요. 조회수는 보내지 않아요"
+                                Command="{Binding AskAnalystCommand}" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="성과 분석가" FontSize="13" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding AnalystStatus}" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
+                    <ItemsControl ItemsSource="{Binding AnalystPicks}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource SecondaryButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                        Padding="12,8" Margin="0,0,0,6" ToolTip="이 트랙으로 기획자에게 주제 받기"
+                                        Click="AnalystPick_Click" Tag="{Binding}">
+                                    <StackPanel>
+                                        <TextBlock FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap">
+                                            <Run Text="{Binding TrackName, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Direction, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Reason}" FontSize="11" Foreground="{StaticResource Muted}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
             <TextBlock Text="최근 30일" FontSize="13" FontWeight="SemiBold" Margin="0,10,0,8" />
             <Border Style="{StaticResource Tile}" Margin="0,0,0,16">
                 <StackPanel>

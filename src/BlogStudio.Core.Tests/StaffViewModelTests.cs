@@ -13,13 +13,15 @@ public class StaffViewModelTests
         public readonly List<AiRequest> Requests = new();
         public string Review = "판정: 수정 후 발행\n- 첫 문단에 결론을 먼저\n- 표 아래 문장이 너무 김";
         public string Write = Fixtures.SampleResponse;
+        public string Analyst = "CS 기초 | TCP 다음으로 HTTP 기초 | 2주 넘게 글 없음\n맛집·카페 | 동네 카페 메모 모으기 | 아직 글 없음\n블록체인 | 입문 | 새 트랙";
         public string Name => "Fake";
         public Task<string?> CheckAsync(CancellationToken ct = default) => Task.FromResult<string?>("1.0");
 
         public Task<AiResult> GenerateAsync(AiRequest request, CancellationToken ct = default)
         {
             Requests.Add(request);
-            var text = request.System.Contains("주제 기획자")
+            var text = request.System.Contains("성과 분석가") ? Analyst
+                : request.System.Contains("주제 기획자")
                 ? "파이썬 deque 시간복잡도 정리 | 파이썬 deque | BFS 다음 단계\n투 포인터 기본 패턴 | 투 포인터 | 코테 단골"
                 : request.User.StartsWith("[검수할 글]") ? Review
                 : Write;
@@ -180,5 +182,66 @@ public class StaffViewModelTests
         Assert.Contains(ai.Requests, r => r.User.StartsWith("[검수할 글]"));
         Assert.Empty(publisher.Published);
         Assert.Contains("자동 발행 꺼짐", vm.StatusText);
+    }
+
+    [Fact]
+    public async Task Analyst_lists_tech_and_life_tracks_and_keeps_only_known_ones()
+    {
+        var (vm, _, ai) = await StartAsync();
+        Assert.True(vm.AskAnalystCommand.CanExecute(null));
+
+        await vm.AskAnalystCommand.ExecuteAsync(null);
+        var ask = ai.Requests[^1];
+        Assert.Equal("light", ask.ModelTier);
+        Assert.Contains("[트랙별 기록]", ask.User);
+        Assert.Contains("CS 기초: 아직 글 없음", ask.User);                     // 기술 트랙
+        Assert.Contains("맛집·카페: 아직 글 없음", ask.User);                   // 일상·리뷰 트랙
+        Assert.Equal(new[] { "cs", "food" }, vm.AnalystPicks.Select(p => p.TrackKey));   // 목록 밖 트랙은 버림
+        Assert.Contains("기획자", vm.AnalystStatus);
+        Assert.False(vm.IsGenerating);
+
+        ai.Analyst = "잘 모르겠어요";
+        await vm.AskAnalystCommand.ExecuteAsync(null);
+        Assert.Empty(vm.AnalystPicks);
+        Assert.Contains("내지 못했어요", vm.AnalystStatus);
+    }
+
+    [Fact]
+    public async Task Analyst_pick_on_tech_track_opens_planner_for_that_track_without_moving_schedule()
+    {
+        var (vm, store, ai) = await StartAsync();                              // 11/11 수요일 = C# 트랙
+        Assert.StartsWith("C# · Windows 개발", vm.TrackName);
+        await vm.AskAnalystCommand.ExecuteAsync(null);
+
+        await vm.PlanAnalystPickCommand.ExecuteAsync(vm.AnalystPicks[0]);      // CS 기초
+        Assert.StartsWith("CS 기초", vm.TrackName);
+        Assert.Contains("분석가 추천", vm.TrackName);
+        Assert.Equal("TCP 다음으로 HTTP 기초", vm.ExtraRequest);              // 비어 있던 추가 요청에 방향
+        var plan = ai.Requests[^1];
+        Assert.Contains("주제 기획자", plan.System);
+        Assert.Contains("[트랙] CS 기초", plan.User);
+        Assert.Contains("TCP 다음으로 HTTP 기초", plan.User);
+        Assert.Equal(2, vm.TopicIdeas.Count);
+        Assert.Empty(vm.AnalystPicks);
+
+        vm.PickTopicIdeaCommand.Execute(vm.TopicIdeas[0]);
+        await vm.GenerateCommand.ExecuteAsync(null);
+        Assert.Equal("cs", store.LoadState().History.Single().TrackKey);
+        Assert.Empty(store.LoadState().Progress.Where(p => p.Value > 0));     // 커리큘럼·요일 일정 그대로
+        Assert.StartsWith("C# · Windows 개발", vm.TrackName);
+    }
+
+    [Fact]
+    public async Task Analyst_pick_on_life_track_switches_category_and_keeps_written_request()
+    {
+        var (vm, _, ai) = await StartAsync();
+        await vm.AskAnalystCommand.ExecuteAsync(null);
+        vm.ExtraRequest = "가성비 위주로";
+
+        await vm.PlanAnalystPickCommand.ExecuteAsync(vm.AnalystPicks[1]);      // 맛집·카페
+        Assert.Equal("food", vm.SelectedCategory!.Key);
+        Assert.True(vm.IsMemoCategory);
+        Assert.Equal("가성비 위주로", vm.ExtraRequest);                       // 직접 적은 요청은 덮지 않음
+        Assert.Contains("[트랙] 맛집·카페", ai.Requests[^1].User);
     }
 }
