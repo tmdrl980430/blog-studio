@@ -23,9 +23,14 @@ public partial class StatsWindow : Window
     private sealed record DayBar(double Height, Brush Brush, string Tip);
     private sealed record CategoryBar(string Name, double BarWidth, string Label);
 
-    public StatsWindow(BlogStats stats)
+    private readonly MainViewModel? _vm;
+
+    public StatsWindow(BlogStats stats, MainViewModel? vm = null)
     {
         InitializeComponent();
+        _vm = vm;
+        if (vm is null) AnalystPanel.Visibility = Visibility.Collapsed;
+        else AnalystPanel.DataContext = vm;
         Streak.Text = $"{stats.StreakDays}일";
         Best.Text = $"최고 {stats.BestStreak}일";
         Recent.Text = $"{stats.ThisWeek} · {stats.ThisMonth}";
@@ -45,6 +50,18 @@ public partial class StatsWindow : Window
         var top = Math.Max(1, stats.ByCategory.Select(c => c.Count).DefaultIfEmpty(0).Max());
         Categories.ItemsSource = stats.ByCategory.Select(c => new CategoryBar(
             c.Name, Math.Max(4, 320.0 * c.Count / top), $"{c.Count}편 · 올림 {c.Published}")).ToList();
+        Closed += (_, _) =>
+        {
+            if (_vm?.AskAnalystCancelCommand.CanExecute(null) == true) _vm.AskAnalystCancelCommand.Execute(null);
+        };
+    }
+
+    /// <summary>분석가 추천 줄 → 창을 닫고 메인 화면에서 그 트랙으로 기획자 주제 받기.</summary>
+    private void AnalystPick_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm is null || sender is not FrameworkElement { Tag: BlogStudio.Core.Staff.TrackPriority pick }) return;
+        Close();
+        _vm.PlanAnalystPickCommand.Execute(pick);
     }
 }
 

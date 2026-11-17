@@ -114,7 +114,7 @@ public partial class MainWindow : Window
         new Extras.GuideWindow(_vm.LoadGuides(), _vm.ThemeName) { Owner = this }.Show();
 
     private void OpenStats_Click(object sender, RoutedEventArgs e) =>
-        new Extras.StatsWindow(_vm.BuildStats()) { Owner = this }.ShowDialog();
+        new Extras.StatsWindow(_vm.BuildStats(), _vm) { Owner = this }.ShowDialog();
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e)
     {

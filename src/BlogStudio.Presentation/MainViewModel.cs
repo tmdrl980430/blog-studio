@@ -329,7 +329,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(GenerateCommand), nameof(ReviseCommand), nameof(StartEditCommand), nameof(MakeInstaCardsCommand),
         nameof(SuggestTitlesCommand), nameof(FixCodeErrorsCommand), nameof(AskPlannerCommand), nameof(ReviewWithEditorCommand),
-        nameof(ApplyEditorNotesCommand))]
+        nameof(ApplyEditorNotesCommand), nameof(AskAnalystCommand))]
     private bool _isGenerating;
 
     // ── 발행 전 점검 ──
@@ -398,7 +398,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void CancelWork()
     {
         foreach (var cancel in new[] { GenerateCancelCommand, ReviseCancelCommand, MakeInstaCardsCancelCommand, SuggestTitlesCancelCommand,
-                     AskPlannerCancelCommand, ReviewWithEditorCancelCommand })
+                     AskPlannerCancelCommand, ReviewWithEditorCancelCommand, AskAnalystCancelCommand })
             if (cancel.CanExecute(null)) cancel.Execute(null);
     }
 
@@ -510,6 +510,90 @@ public sealed partial class MainViewModel : ObservableObject
         TopicIdeas.Clear();
         StatusText = "오늘 주제를 바꿨어요" + (idea.Category.Length > 0 ? $" (카테고리 {idea.Category})" : "")
             + " — 글 생성하기를 누르면 작가가 써요";
+    }
+
+    // ── AI 직원: 성과 분석가 ('통계' 창) ──
+    private string _analystPrompt = "";
+
+    /// <summary>분석가가 낸 우선순위 (최대 3줄). 통계 창에 보여 주고, 누르면 그 트랙으로 기획자를 연다.</summary>
+    public ObservableCollection<TrackPriority> AnalystPicks { get; } = new();
+    [ObservableProperty] private string _analystStatus = "";
+
+    /// <summary>분석가에게 보낼 트랙 목록: 기술 트랙 다음 일상·리뷰 트랙 (테마 순서).</summary>
+    private IEnumerable<KeyValuePair<string, string>> AnalystTracks() =>
+        new[] { _theme, _life }.Where(t => t is not null)
+            .SelectMany(t => t!.Tracks.Where(t.Curriculum.ContainsKey)
+                .Select(k => new KeyValuePair<string, string>(k, t.Curriculum[k].Name)));
+
+    private bool CanAskAnalyst() => !IsGenerating;
+
+    [RelayCommand(CanExecute = nameof(CanAskAnalyst), IncludeCancelCommand = true)]
+    private async Task AskAnalystAsync(CancellationToken ct)
+    {
+        if (_theme is null) return;
+        IsGenerating = true;
+        AnalystPicks.Clear();
+        AnalystStatus = "분석가가 통계를 보는 중…";
+        try
+        {
+            var history = _store.LoadState().History;
+            var records = AnalystPrompts.Records(history, AnalystTracks());
+            var stats = BlogStats.From(history, _today(), TrackLabel);
+            var p = AnalystPrompts.Build(_analystPrompt, stats, records, _today(), ExtraRequest);
+            var result = await _provider.GenerateAsync(new AiRequest(p.System, p.User, "light", "haiku"), ct);
+            foreach (var pick in AnalystPrompts.Parse(result.Text, records)) AnalystPicks.Add(pick);
+            AnalystStatus = AnalystPicks.Count > 0
+                ? "줄을 누르면 그 트랙으로 기획자에게 주제를 받아요"
+                : "분석가가 우선순위를 내지 못했어요 — 다시 눌러 보세요";
+        }
+        catch (OperationCanceledException)
+        {
+            AnalystStatus = "분석을 취소했어요";
+        }
+        catch (AiProviderException ex)
+        {
+            AnalystStatus = "분석 실패: " + ex.Message;
+        }
+        finally
+        {
+            IsGenerating = false;
+        }
+    }
+
+    /// <summary>
+    /// 분석가 추천 줄 → 그 트랙을 오늘 트랙으로 잡고 기획자에게 주제를 받는다.
+    /// 일상·리뷰 트랙은 그 카테고리로, 기술 트랙은 그 트랙의 다음 커리큘럼 위치로 (요일 일정은 바꾸지 않음).
+    /// 추천 방향은 '추가 요청'이 비어 있을 때만 넣는다.
+    /// </summary>
+    [RelayCommand]
+    private async Task PlanAnalystPickAsync(TrackPriority? pick)
+    {
+        if (pick is null || IsGenerating || _theme is null) return;
+        if (Categories.FirstOrDefault(c => c.IsMemoCategory && c.Key == pick.TrackKey) is { } life)
+        {
+            SelectedCategory = life;
+        }
+        else if (_theme.Curriculum.GetValueOrDefault(pick.TrackKey) is { } track)
+        {
+            if (SelectedCategory?.Key != TechCategory) SelectedCategory = Categories.FirstOrDefault(c => c.Key == TechCategory);
+            else RefreshPlan();
+            var index = _store.NextIndex(track.Key);
+            var topic = index < track.Topics.Count ? track.Topics[index] : null;
+            _plan = new PlannedTopic(_today(), track, topic, index);
+            TrackName = $"{track.Name} · {index + 1} / {track.Topics.Count} · 분석가 추천";
+            TopicTitle = topic ?? "커리큘럼 완료 — 다음 심화 주제를 Claude가 골라요";
+            GenerateCommand.NotifyCanExecuteChanged();
+            AskPlannerCommand.NotifyCanExecuteChanged();
+        }
+        else
+        {
+            StatusText = $"'{pick.TrackName}' 트랙을 찾지 못했어요";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(ExtraRequest)) ExtraRequest = pick.Direction;
+        AnalystPicks.Clear();
+        AnalystStatus = "";
+        await AskPlannerCommand.ExecuteAsync(null);
     }
 
     // ── AI 직원: 편집자 (발행 전 검수) ──
@@ -735,6 +819,7 @@ public sealed partial class MainViewModel : ObservableObject
         _prompts = new PromptBuilder(_themes.LoadBasePrompt());
         _plannerPrompt = _themes.LoadStaffPrompt("planner");
         _editorPrompt = _themes.LoadStaffPrompt("editor");
+        _analystPrompt = _themes.LoadStaffPrompt("analyst");
         ThemeName = _theme.Name;
         LoadCategories();
         RefreshHistory();
