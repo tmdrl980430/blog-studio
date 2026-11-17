@@ -8,6 +8,9 @@ import { toBlogHtml, extractFigures } from "../lib/render";
 import { addPost, load, save, updatePost, exportJson } from "../lib/storage";
 import { generate, ClaudeError } from "../lib/claude";
 import { splitTitle } from "../lib/images";
+import {
+  buildTopicIdeas, parseTopicIdeas, buildEditorReview, parseEditorReview, revisionFromReview, keywordRequest, loadStaffPrompt,
+} from "../lib/staff";
 
 const themes = loadThemes();
 const base = loadBasePrompt();
@@ -181,5 +184,56 @@ describe("Claude API", () => {
     await expect(generate("", "sonnet", prompt)).rejects.toThrow(ClaudeError);
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: { message: "invalid x-api-key" } }), { status: 401 }));
     await expect(generate("k", "sonnet", prompt, { fetchImpl })).rejects.toThrow("API 키가 맞지 않아요");
+  });
+});
+
+describe("AI 직원 (shared/staff)", () => {
+  it("지시문을 번들에서 읽고 맨 앞 주석은 뺀다", () => {
+    expect(loadStaffPrompt("planner").startsWith("당신은")).toBe(true);
+    expect(loadStaffPrompt("planner")).toContain("주제 | 핵심 검색 키워드 | 이 주제를 고른 이유 (20자 안팎) | 카테고리");
+    expect(loadStaffPrompt("editor")).toContain("{author}");
+  });
+  it("기획자 프롬프트: 같은 트랙 이전 글, 카테고리 목록, 요청", () => {
+    const track = themes.tech.curriculum.cs;
+    const p = buildTopicIdeas("", themes.tech, track, [
+      { date: "2026-11-01", track: "cs", title: "프로세스와 스레드" },
+      { date: "2026-11-02", track: "algorithm", title: "BFS" },
+    ], "면접 대비");
+    expect(p.system).toContain("주제 기획자");
+    expect(p.user).toContain("- 프로세스와 스레드");
+    expect(p.user).not.toContain("- BFS");
+    expect(p.user).toContain("- 개발 > CS 기초");
+    expect(p.user).toContain("[이 트랙 기본 카테고리] 개발 > CS 기초");
+    expect(p.user).toContain("[요청] 면접 대비");
+  });
+  it("기획자 응답: 번호·따옴표·머리줄·중복·긴 주제 정리, 카테고리는 목록 안만", () => {
+    const ideas = parseTopicIdeas([
+      "주제 | 핵심 검색 키워드 | 이유 | 카테고리",
+      '1. "TCP 3-way handshake" | TCP 연결 | 면접 단골 | 개발>CS 기초',
+      "- TCP 3-way handshake | 중복 | x | 개발 > CS 기초",
+      "가".repeat(61) + " | 길다",
+      "캐시 지역성 | 캐시 | 다음 단계 | 개발 > 게임",
+      "힙 정렬",
+    ].join("\n"));
+    expect(ideas.map((i) => i.topic)).toEqual(["TCP 3-way handshake", "캐시 지역성", "힙 정렬"]);
+    expect(ideas[0]).toEqual({ topic: "TCP 3-way handshake", keyword: "TCP 연결", reason: "면접 단골", category: "개발 > CS 기초" });
+    expect(ideas[1].category).toBe("");
+    expect(ideas[2]).toEqual({ topic: "힙 정렬", keyword: "", reason: "", category: "" });
+    expect(parseTopicIdeas(Array.from({ length: 8 }, (_, i) => `주제${i}`).join("\n"))).toHaveLength(5);
+  });
+  it("편집자 응답: 판정 읽기, 형식 안내 줄은 판정 아님, 의견 있으면 발행 가능 → 수정 후 발행", () => {
+    expect(parseEditorReview("**판정: 발행 가능**")).toEqual({ verdict: "발행 가능", notes: [] });
+    expect(parseEditorReview("판정: 다시 쓰기\n- 사실 오류")).toEqual({ verdict: "다시 쓰기", notes: ["사실 오류"] });
+    expect(parseEditorReview("판정: 발행 가능 | 수정 후 발행 | 다시 쓰기\n- 고칠 점").verdict).toBe("수정 후 발행");
+    expect(parseEditorReview("판정: 발행 가능\n1. 제목").verdict).toBe("수정 후 발행");
+    expect(parseEditorReview("판정: 수정 후 발행\n" + Array.from({ length: 9 }, (_, i) => `- 의견${i}`).join("\n")).notes).toHaveLength(7);
+    expect(parseEditorReview("아무 말")).toEqual({ verdict: "발행 가능", notes: [] });
+  });
+  it("편집자 프롬프트·고치기 요청·키워드 요청", () => {
+    expect(buildEditorReview("주인 {author}", "글", "").system).toBe("주인 글쓴이");
+    expect(buildEditorReview("", "글", "승기").user).toBe("[검수할 글]\n글");
+    expect(revisionFromReview({ verdict: "수정 후 발행", notes: ["a", "b"] })).toBe("편집자 검수 의견대로 고쳐 주세요. 의견과 관계없는 부분은 그대로 둡니다.\n- a\n- b");
+    expect(keywordRequest("", "TCP")).toBe('핵심 검색 키워드 "TCP"를 제목 앞쪽과 첫 문단에 자연스럽게 넣어 주세요.');
+    expect(keywordRequest("짧게", " ")).toBe("짧게");
   });
 });
