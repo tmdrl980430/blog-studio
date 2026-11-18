@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { loadThemes, loadBasePrompt, colorFor, type ThemePack } from "./lib/themes";
+import { loadThemes, loadBasePrompt, colorFor, type ThemePack, type Track } from "./lib/themes";
 import { parsePost, tagLine, toFileText, type PostDraft } from "./lib/posts";
 import { matchCategory, resolveCategory } from "./lib/categories";
 import {
-  buildEditorReview, buildTopicIdeas, keywordRequest, loadStaffPrompt, parseEditorReview, parseTopicIdeas, revisionFromReview,
-  type EditorReview, type TopicIdea,
+  blogStats, buildAnalystPrompt, buildEditorReview, buildTopicIdeas, keywordRequest, loadStaffPrompt,
+  parseAnalystPriorities, parseEditorReview, parseTopicIdeas, revisionFromReview, trackRecords,
+  type EditorReview, type TopicIdea, type TrackPriority,
 } from "./lib/staff";
 import { buildPrompt, buildRevision } from "./lib/prompt";
 import { plan, planTrack, isoDate, DAY_LABELS, dayKey, type PlannedTopic } from "./lib/planner";
@@ -18,6 +19,7 @@ const THEMES = loadThemes();
 const BASE = loadBasePrompt();
 const PLANNER = loadStaffPrompt("planner");
 const EDITOR = loadStaffPrompt("editor");
+const ANALYST = loadStaffPrompt("analyst");
 const TECH = THEMES.tech;
 const LIFE = THEMES.life as ThemePack | undefined;
 
@@ -31,6 +33,10 @@ const CATEGORIES: Category[] = [
   { key: "tech", label: "기술 공부 · 오늘의 주제", memo: false },
   ...(LIFE ? LIFE.tracks.filter((k) => LIFE.curriculum[k]).map((k) => ({ key: k, label: LIFE.curriculum[k].name, memo: true })) : []),
 ];
+
+const ANALYST_TRACKS = [TECH, LIFE].flatMap((t) =>
+  t ? t.tracks.filter((k) => t.curriculum[k]).map((k) => ({ key: k, name: t.curriculum[k].name })) : [],
+);
 
 interface ImageItem {
   number: number;
@@ -52,6 +58,9 @@ export default function App() {
   const [ideas, setIdeas] = useState<TopicIdea[]>([]);
   const [picked, setPicked] = useState<TopicIdea | null>(null); // 기획자 추천 주제 (이번 한 편만)
   const [review, setReview] = useState<EditorReview | null>(null);
+  const [analystPicks, setAnalystPicks] = useState<TrackPriority[]>([]);
+  // 분석가가 고른 기술 트랙 (요일 일정은 그대로, 그날 이번 한 편만)
+  const [trackPick, setTrackPick] = useState<{ key: string; date: string } | null>(null);
   const [showSettings, setShowSettings] = useState(() => !load().settings.apiKey);
   const abort = useRef<AbortController | null>(null);
 
@@ -59,17 +68,25 @@ export default function App() {
 
   const today = isoDate(new Date());
   const cat = CATEGORIES.find((c) => c.key === category)!;
+  const analystTrack = !cat.memo && trackPick?.date === today ? TECH.curriculum[trackPick.key] : undefined;
   const planned: PlannedTopic | null = useMemo(() => {
     if (cat.memo && LIFE) return planTrack(LIFE.curriculum[cat.key], today, data.progress);
+    if (analystTrack) return planTrack(analystTrack, today, data.progress);
     return plan(TECH, data.settings.schedule, today, data.progress);
-  }, [cat, today, data.progress, data.settings.schedule]);
+  }, [cat, analystTrack, today, data.progress, data.settings.schedule]);
   const theme = cat.memo && LIFE ? LIFE : TECH;
 
   // 주제 종류·날짜가 바뀌면 기획자 추천은 버린다 / 다른 글을 보면 편집자 의견도 버린다
+  const selectCategory = (key: string) => {
+    setCategory(key);
+    setIdeas([]);
+    setPicked(null);
+    setTrackPick(null);
+  };
   useEffect(() => {
     setIdeas([]);
     setPicked(null);
-  }, [category, today]);
+  }, [today]);
   useEffect(() => setReview(null), [current?.id]);
 
   // 글이 바뀌면 썸네일·그림 이미지와 미리보기 다시 만들기
@@ -154,6 +171,8 @@ export default function App() {
       setExtra("");
       setIdeas([]);
       setPicked(null);
+      setTrackPick(null);
+      setAnalystPicks([]);
       setStatus(`완료 · 입력 ${r.inputTokens.toLocaleString()} / 출력 ${r.outputTokens.toLocaleString()} 토큰`);
     });
 
@@ -172,16 +191,45 @@ export default function App() {
     });
   const onRevise = () => reviseWith(revision);
 
-  const onAskPlanner = () =>
+  const askPlanner = (pack: ThemePack, track: Track, hint: string) =>
     run(async (signal) => {
-      if (!planned) return;
       setStatus("기획자가 주제를 고르는 중…");
-      const prompt = buildTopicIdeas(PLANNER, theme, planned.track, data.posts.map((p) => ({ date: p.date, track: p.track, title: p.title })), extra);
+      const prompt = buildTopicIdeas(PLANNER, pack, track, data.posts.map((p) => ({ date: p.date, track: p.track, title: p.title })), hint);
       const r = await generate(data.settings.apiKey, "haiku", prompt, { signal, maxTokens: 1000 });
       const found = parseTopicIdeas(r.text);
       setIdeas(found);
       setStatus(found.length ? "추천 주제를 눌러 오늘 주제로 정하세요" : "기획자가 주제를 내지 못했어요");
     });
+
+  const onAskPlanner = () => {
+    if (planned) askPlanner(theme, planned.track, extra);
+  };
+
+  const onAskAnalyst = () =>
+    run(async (signal) => {
+      setAnalystPicks([]);
+      setStatus("분석가가 통계를 보는 중…");
+      const records = trackRecords(data.posts, ANALYST_TRACKS);
+      const prompt = buildAnalystPrompt(ANALYST, blogStats(data.posts, today), records, today, extra);
+      const r = await generate(data.settings.apiKey, "haiku", prompt, { signal, maxTokens: 1000 });
+      const found = parseAnalystPriorities(r.text, records);
+      setAnalystPicks(found);
+      setStatus(found.length ? "줄을 누르면 그 트랙으로 기획자에게 주제를 받아요" : "분석가가 우선순위를 내지 못했어요 — 다시 눌러 보세요");
+    });
+
+  // 분석가 추천 → 그 트랙으로 옮기고 기획자에게 주제를 받는다. 방향은 '추가 요청'이 비어 있을 때만 넣는다 (데스크톱과 같음)
+  const pickAnalyst = (pick: TrackPriority) => {
+    const isLife = CATEGORIES.some((c) => c.memo && c.key === pick.trackKey);
+    const pack = isLife && LIFE ? LIFE : TECH;
+    const track = pack.curriculum[pick.trackKey];
+    if (!track) return setStatus(`'${pick.trackName}' 트랙을 찾지 못했어요`);
+    selectCategory(isLife ? pick.trackKey : "tech");
+    if (!isLife) setTrackPick({ key: pick.trackKey, date: today });
+    const hint = extra.trim() ? extra : pick.direction;
+    setExtra(hint);
+    setAnalystPicks([]);
+    askPlanner(pack, track, hint);
+  };
 
   const pickIdea = (idea: TopicIdea) => {
     setPicked(idea);
@@ -249,7 +297,7 @@ export default function App() {
         <aside>
           <label>
             카테고리
-            <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={busy}>
+            <select value={category} onChange={(e) => selectCategory(e.target.value)} disabled={busy}>
               {CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>{c.label}</option>
               ))}
@@ -257,7 +305,7 @@ export default function App() {
           </label>
 
           <div className="card">
-            <div className="muted">{today} {DAY_LABELS[dayKey(today)]}요일{planned ? ` · ${planned.track.name}` : ""}</div>
+            <div className="muted">{today} {DAY_LABELS[dayKey(today)]}요일{planned ? ` · ${planned.track.name}` : ""}{analystTrack ? " · 분석가 추천" : ""}</div>
             <div className="topic">
               {!planned ? "오늘은 쉬는 날이에요" : picked && !(cat.memo && memo.trim()) ? picked.topic : planned.topic ?? "주제를 다 썼어요 — Claude가 골라요"}
             </div>
@@ -265,6 +313,19 @@ export default function App() {
           </div>
           {planned && (
             <button className="secondary" onClick={onAskPlanner} disabled={busy}>기획자에게 주제 추천받기</button>
+          )}
+          <button className="secondary" onClick={onAskAnalyst} disabled={busy}>분석가에게 묻기</button>
+          {analystPicks.length > 0 && (
+            <ul className="ideas analyst">
+              {analystPicks.map((p) => (
+                <li key={p.trackKey}>
+                  <button className="link" onClick={() => pickAnalyst(p)} disabled={busy}>
+                    <span>{p.trackName} · {p.direction}</span>
+                    {p.reason && <small>{p.reason}</small>}
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
           {ideas.length > 0 && (
             <ul className="ideas">
