@@ -10,6 +10,7 @@ import { generate, ClaudeError } from "../lib/claude";
 import { splitTitle } from "../lib/images";
 import {
   buildTopicIdeas, parseTopicIdeas, buildEditorReview, parseEditorReview, revisionFromReview, keywordRequest, loadStaffPrompt,
+  blogStats, trackRecords, buildAnalystPrompt, parseAnalystPriorities,
 } from "../lib/staff";
 
 const themes = loadThemes();
@@ -228,6 +229,56 @@ describe("AI 직원 (shared/staff)", () => {
     expect(parseEditorReview("판정: 발행 가능\n1. 제목").verdict).toBe("수정 후 발행");
     expect(parseEditorReview("판정: 수정 후 발행\n" + Array.from({ length: 9 }, (_, i) => `- 의견${i}`).join("\n")).notes).toHaveLength(7);
     expect(parseEditorReview("아무 말")).toEqual({ verdict: "발행 가능", notes: [] });
+  });
+  describe("성과 분석가", () => {
+    const tracks = [{ key: "algorithm", name: "알고리즘" }, { key: "food", name: "맛집·카페" }, { key: "cs", name: "CS 기초" }];
+    const posts = [
+      { date: "2026-11-18", track: "algorithm", publishedTo: ["naver"] },
+      { date: "2026-11-17", track: "algorithm", publishedTo: ["naver", "tistory"] },
+      { date: "2026-11-16", track: "food", publishedTo: [] },
+      { date: "2026-11-01", track: "food" },
+      { date: "2026-10-01", track: "지운트랙", publishedTo: ["tistory"] },
+    ];
+    it("통계: 주(월요일 시작)·달·30일·연속·올림", () => {
+      expect(blogStats(posts, "2026-11-18")).toEqual({
+        total: 5, thisMonth: 4, thisWeek: 3, last30Days: 4, streakDays: 3, bestStreak: 3,
+        publishedNaver: 2, publishedTistory: 2, unpublished: 2,
+      });
+      expect(blogStats(posts, "2026-11-19").streakDays).toBe(3);  // 오늘 안 썼으면 어제부터
+      expect(blogStats(posts, "2026-11-20").streakDays).toBe(0);
+    });
+    it("지시문을 읽고, 프롬프트에 트랙별 기록을 넣는다 (목록 밖 트랙은 세지 않음)", () => {
+      expect(loadStaffPrompt("analyst")).toContain("트랙 | 다음 주제 방향 | 이유");
+      const records = trackRecords(posts, [...tracks, tracks[0]]);
+      expect(records.map((r) => r.posts)).toEqual([2, 2, 0]);
+      const p = buildAnalystPrompt("", blogStats(posts, "2026-11-18"), records, "2026-11-18", " 수익 ");
+      expect(p.system).toContain("성과 분석가");
+      expect(p.user).toContain("[전체] 글 5편 · 이번 주 3편 · 이번 달 4편 · 최근 30일 4편 · 연속 3일 (최고 3일)");
+      expect(p.user).toContain("[올림] 네이버 2편 · 티스토리 2편 · 아직 안 올린 글 2편");
+      expect(p.user).toContain("- 알고리즘: 글 2편 · 올림 2편 · 마지막 글 오늘");
+      expect(p.user).toContain("- 맛집·카페: 글 2편 · 올림 0편 · 마지막 글 2일 전");
+      expect(p.user).toContain("- CS 기초: 아직 글 없음");
+      expect(p.user).not.toContain("지운트랙");
+      expect(p.user.endsWith("[요청] 수익")).toBe(true);
+    });
+    it("응답: 이름·키로 맞추고 목록 밖·중복·방향 없는 줄은 버리고 최대 3개", () => {
+      const records = trackRecords(posts, [...tracks, { key: "travel", name: "여행·일상" }]);
+      const picks = parseAnalystPriorities([
+        "트랙 | 다음 주제 방향 | 이유",
+        '1. **CS기초 | "캐시 지역성" | 글이 없음**',
+        "- 없는 트랙 | 방향 | 이유",
+        "맛집 카페 | | 방향 없음",
+        "맛집 · 카페 | 성수 브런치",
+        "CS 기초 | 중복 | x",
+        "ALGORITHM | 다익스트라 | 꾸준함",
+        "여행·일상 | 넘침 | x",
+      ].join("\n"), records);
+      expect(picks).toEqual([
+        { trackKey: "cs", trackName: "CS 기초", direction: "캐시 지역성", reason: "글이 없음" },
+        { trackKey: "food", trackName: "맛집·카페", direction: "성수 브런치", reason: "" },
+        { trackKey: "algorithm", trackName: "알고리즘", direction: "다익스트라", reason: "꾸준함" },
+      ]);
+    });
   });
   it("편집자 프롬프트·고치기 요청·키워드 요청", () => {
     expect(buildEditorReview("주인 {author}", "글", "").system).toBe("주인 글쓴이");

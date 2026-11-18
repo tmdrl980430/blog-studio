@@ -78,6 +78,45 @@ describe("App", () => {
       expect(host.querySelector(".ideas")).toBeNull();
     });
 
+    it("분석가 추천을 누르면 그 트랙으로 옮겨 기획자에게 방향을 넘긴다", async () => {
+      localStorage.setItem("blog-studio:v1", JSON.stringify({ settings: { apiKey: "k" }, progress: {}, posts: [] }));
+      const fetchMock = reply("트랙 | 방향 | 이유\n맛집·카페 | 성수 브런치 | 글이 없음\nCS 기초 | 캐시 지역성 | 쉬는 중\n없는 트랙 | x | y");
+      vi.stubGlobal("fetch", fetchMock);
+      const bodyOf = (i: number) => JSON.parse((fetchMock.mock.calls[i] as unknown as [string, RequestInit])[1].body as string);
+      const host = document.createElement("div");
+      document.body.appendChild(host);
+      await act(async () => createRoot(host).render(<App />));
+
+      await click(host, "분석가에게 묻기");
+      expect(bodyOf(0).model).toContain("haiku");
+      expect(bodyOf(0).system[0].text).toContain("성과 분석가");
+      expect(bodyOf(0).messages[0].content).toContain("- 맛집·카페: 아직 글 없음");
+      let picks = [...host.querySelectorAll(".analyst button")] as HTMLButtonElement[];
+      expect(picks).toHaveLength(2);
+
+      // 기술 트랙: 카테고리는 기술 그대로, 트랙만 이번 한 편 바뀜
+      fetchMock.mockImplementation(async () =>
+        new Response(JSON.stringify({ content: [{ type: "text", text: "캐시 라인 이해 | 캐시 | 다음 단계 | 개발 > CS 기초" }], usage: {} }), { status: 200 }));
+      await act(async () => picks[1].click());
+      expect((host.querySelector("aside select") as HTMLSelectElement).value).toBe("tech");
+      expect(host.querySelector(".card .muted")!.textContent).toContain("분석가 추천");
+      expect(bodyOf(1).system[0].text).toContain("주제 기획자");
+      expect(bodyOf(1).messages[0].content).toContain("[트랙] CS 기초");
+      expect(bodyOf(1).messages[0].content).toContain("[요청] 캐시 지역성");
+      expect(host.querySelector(".analyst")).toBeNull();
+      expect(host.querySelectorAll(".ideas button")).toHaveLength(1);
+
+      // 일상 트랙: 그 카테고리로 옮기고, 이미 적힌 추가 요청은 덮어쓰지 않음
+      fetchMock.mockImplementation(reply("맛집·카페 | 성수 브런치 | 글이 없음").getMockImplementation()!);
+      await click(host, "분석가에게 묻기");
+      picks = [...host.querySelectorAll(".analyst button")] as HTMLButtonElement[];
+      await act(async () => picks[0].click());
+      expect((host.querySelector("aside select") as HTMLSelectElement).value).toBe("food");
+      expect(host.querySelector(".card .muted")!.textContent).not.toContain("분석가 추천");
+      expect(bodyOf(3).messages[0].content).toContain("[트랙] 맛집·카페");
+      expect(bodyOf(3).messages[0].content).toContain("[요청] 캐시 지역성");
+    });
+
     it("편집자 검수 결과를 보여 주고 의견대로 고치기를 요청한다", async () => {
       const post = {
         id: "p1", createdAt: "2026-11-17T00:00:00Z", publishedTo: [], title: "BFS 정리", tags: ["BFS"], summary: "요약",
