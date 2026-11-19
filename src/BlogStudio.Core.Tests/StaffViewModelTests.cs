@@ -150,6 +150,9 @@ public class StaffViewModelTests
         Assert.True(vm.IsPublishedTistory);
         Assert.True(store.LoadState().History[0].IsPublishedTo("tistory"));
         Assert.Contains("티스토리 발행 ✓", File.ReadAllText(Path.Combine(store.Root, "auto-log.txt")));
+        var logged = Assert.Single(vm.LoadAutoLog());
+        Assert.Equal(BlogStudio.Core.Stats.AutoLogOutcome.Published, logged.Outcome);
+        Assert.Equal(vm.AutoLogPath, Path.Combine(store.Root, "auto-log.txt"));
     }
 
     [Fact]

@@ -223,17 +223,12 @@ public sealed partial class MainViewModel : ObservableObject
         return results.Count == 0 ? "발행할 블로그를 고르지 않음" : string.Join(", ", results);
     }
 
-    private void AppendAutoLog(string line)
-    {
-        try
-        {
-            File.AppendAllText(Path.Combine(_store.Root, "auto-log.txt"), $"{DateTime.Now:yyyy-MM-dd HH:mm} {line}\n");
-        }
-        catch (IOException)
-        {
-            // 기록 실패는 무시
-        }
-    }
+    private void AppendAutoLog(string line) => AutoLog.Append(_store.Root, line, DateTime.Now);
+
+    /// <summary>'통계' 창에 보여 줄 자동 작성·발행 기록 (최근 것부터).</summary>
+    public IReadOnlyList<AutoLogEntry> LoadAutoLog(int max = 20) => AutoLog.ReadRecent(_store.Root, max);
+
+    public string AutoLogPath => AutoLog.PathIn(_store.Root);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsMemoCategory))]

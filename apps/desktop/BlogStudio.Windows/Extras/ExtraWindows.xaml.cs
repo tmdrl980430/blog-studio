@@ -22,6 +22,7 @@ public partial class StatsWindow : Window
 {
     private sealed record DayBar(double Height, Brush Brush, string Tip);
     private sealed record CategoryBar(string Name, double BarWidth, string Label);
+    private sealed record AutoLogRow(string Time, string Badge, Brush Brush, string Title, string Detail);
 
     private readonly MainViewModel? _vm;
 
@@ -50,10 +51,43 @@ public partial class StatsWindow : Window
         var top = Math.Max(1, stats.ByCategory.Select(c => c.Count).DefaultIfEmpty(0).Max());
         Categories.ItemsSource = stats.ByCategory.Select(c => new CategoryBar(
             c.Name, Math.Max(4, 320.0 * c.Count / top), $"{c.Count}편 · 올림 {c.Published}")).ToList();
+        ShowAutoLog(vm?.LoadAutoLog() ?? Array.Empty<AutoLogEntry>(), vm is not null);
         Closed += (_, _) =>
         {
             if (_vm?.AskAnalystCancelCommand.CanExecute(null) == true) _vm.AskAnalystCancelCommand.Execute(null);
         };
+    }
+
+    private void ShowAutoLog(IReadOnlyList<AutoLogEntry> entries, bool available)
+    {
+        if (!available) { AutoLogPanel.Visibility = Visibility.Collapsed; return; }
+        AutoLogEmpty.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        AutoLogList.ItemsSource = entries.Select(e =>
+        {
+            var (badge, color) = e.Outcome switch
+            {
+                AutoLogOutcome.Published => ("발행", Color.FromRgb(0x03, 0xA9, 0x4D)),
+                AutoLogOutcome.Partial => ("일부", Color.FromRgb(0xB4, 0x53, 0x09)),
+                AutoLogOutcome.Held => ("보류", Color.FromRgb(0xB4, 0x53, 0x09)),
+                AutoLogOutcome.Off => ("작성만", Color.FromRgb(0x6B, 0x72, 0x80)),
+                AutoLogOutcome.Failed => ("실패", Color.FromRgb(0xDC, 0x26, 0x26)),
+                _ => ("기록", Color.FromRgb(0x6B, 0x72, 0x80)),
+            };
+            var detail = e.Outcome == AutoLogOutcome.Other ? "" : $"편집자 {e.Editor} · {e.Result}";
+            return new AutoLogRow(e.TimeLabel, badge, new SolidColorBrush(color), e.Title, detail);
+        }).ToList();
+    }
+
+    private void OpenAutoLog_Click(object sender, RoutedEventArgs e)
+    {
+        var path = _vm?.AutoLogPath;
+        if (path is null || !File.Exists(path))
+        {
+            MessageBox.Show(this, "아직 auto-log.txt가 없어요.", "자동 발행 기록");
+            return;
+        }
+        try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+        catch (Exception ex) { MessageBox.Show(this, "파일을 열지 못했어요: " + ex.Message, "자동 발행 기록"); }
     }
 
     /// <summary>분석가 추천 줄 → 창을 닫고 메인 화면에서 그 트랙으로 기획자 주제 받기.</summary>
