@@ -8,6 +8,7 @@ import { toBlogHtml, extractFigures } from "../lib/render";
 import { addPost, load, save, updatePost, exportJson } from "../lib/storage";
 import { generate, ClaudeError } from "../lib/claude";
 import { splitTitle } from "../lib/images";
+import { loadGuides, parseGuide, fillGuide } from "../lib/guides";
 import {
   buildTopicIdeas, parseTopicIdeas, buildEditorReview, parseEditorReview, revisionFromReview, keywordRequest, loadStaffPrompt,
   blogStats, trackRecords, buildAnalystPrompt, parseAnalystPriorities,
@@ -286,5 +287,51 @@ describe("AI 직원 (shared/staff)", () => {
     expect(revisionFromReview({ verdict: "수정 후 발행", notes: ["a", "b"] })).toBe("편집자 검수 의견대로 고쳐 주세요. 의견과 관계없는 부분은 그대로 둡니다.\n- a\n- b");
     expect(keywordRequest("", "TCP")).toBe('핵심 검색 키워드 "TCP"를 제목 앞쪽과 첫 문단에 자연스럽게 넣어 주세요.');
     expect(keywordRequest("짧게", " ")).toBe("짧게");
+  });
+});
+
+describe("guides (블로그 준비 가이드, 데스크톱 BlogGuides와 같은 규칙)", () => {
+  const themes = loadThemes();
+
+  it("실제 가이드의 {theme.*} 자리를 테마 값으로 채운다", () => {
+    for (const slug of ["tech", "life"]) {
+      const theme = themes[slug];
+      const guides = loadGuides(theme);
+      expect(guides.map((g) => g.key)).toEqual(theme.design.guides);
+      const naver = guides.find((g) => g.key === "naver")!;
+      expect(naver.markdown).not.toContain("{theme.");
+      expect(naver.markdown).toContain(theme.design.categories.join(" / "));
+      expect(naver.markdown).toContain(theme.design.accent);
+      expect(naver.markdown).toContain(theme.design.layout);
+      expect(naver.markdown).not.toContain("<!--");
+    }
+  });
+
+  it("css·html 블록만 복사 버튼으로 뽑는다", () => {
+    const tistory = loadGuides(themes.tech).find((g) => g.key === "tistory")!;
+    expect(tistory.title).toBe("티스토리 개설·디자인 가이드");
+    expect(tistory.codeBlocks.some((b) => b.language === "css" && b.code.includes(".article-view h2"))).toBe(true);
+    expect(tistory.codeBlocks.some((b) => b.language === "html" && b.code.includes("highlight.min.js"))).toBe(true);
+    expect(tistory.codeBlocks.every((b) => !b.code.includes("```"))).toBe(true);
+    expect(tistory.codeBlocks.find((b) => b.language === "css")!.label.startsWith("CSS · ")).toBe(true);
+  });
+
+  it("모르는 이름·빈 값은 그대로 두고 CRLF·머리말·주석을 처리한다", () => {
+    const theme = { ...themes.tech, name: "테스트", design: { accent: "#123456", layout: "", categories: [], tistorySkin: "", guides: [] } };
+    const text = "---\r\ntitle: \"샘플\"\r\n---\r\n<!-- 메모 -->\r\n색 {theme.accent}, 카테고리 {theme.categories}, {theme.unknown}\r\n\r\n```css\r\na{color:red}\r\n```\r\n\r\n```python\r\nprint(1)\r\n```\r\n";
+    const guide = parseGuide("sample", text, theme);
+    expect(guide.title).toBe("샘플");
+    expect(guide.markdown.startsWith("색 #123456, 카테고리 {theme.categories}, {theme.unknown}")).toBe(true);
+    expect(guide.codeBlocks).toHaveLength(1);
+    expect(guide.codeBlocks[0].code).toBe("a{color:red}");
+    expect(fillGuide("{theme.name}", theme)).toBe("테스트");
+  });
+
+  it("없는 파일은 건너뛰고, guides가 비면 기본 순서", () => {
+    const theme = { ...themes.tech, design: { ...themes.tech.design, guides: [] } };
+    const files = { design: "---\ntitle: 디자인\n---\n본문", naver: "네이버" };
+    expect(loadGuides(theme, files).map((g) => g.key)).toEqual(["naver", "design"]);
+    const custom = { ...themes.tech, design: { ...themes.tech.design, guides: ["design", "missing"] } };
+    expect(loadGuides(custom, files).map((g) => g.title)).toEqual(["디자인"]);
   });
 });

@@ -22,7 +22,19 @@ export interface ThemePack {
   defaultSchedule: Record<string, string>;
   trackColors: Record<string, string>;
   accent: string;
+  /** design 항목 중 블로그 준비 가이드({theme.*})에 쓰는 값 */
+  design: ThemeDesign;
   curriculum: Record<string, Track>;
+}
+
+export interface ThemeDesign {
+  /** theme.yaml 원래 값 (없으면 "" — 가이드 자리는 그대로 둠) */
+  accent: string;
+  layout: string;
+  categories: string[];
+  tistorySkin: string;
+  /** 보여 줄 가이드 순서 (shared/guides/<key>.md) */
+  guides: string[];
 }
 
 type Raw = Record<string, unknown>;
@@ -61,6 +73,13 @@ export function parseTheme(themeYaml: string, curriculumFiles: Record<string, st
     defaultSchedule: dict(t.default_schedule),
     trackColors: dict(design.track_colors),
     accent: str(design.accent) || "#2F5BEA",
+    design: {
+      accent: str(design.accent),
+      layout: str(design.layout),
+      categories: list(design.categories),
+      tistorySkin: str(design.tistory_skin),
+      guides: list(design.guides),
+    },
     curriculum,
   };
 }

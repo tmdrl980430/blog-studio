@@ -14,6 +14,7 @@ import { addPost, load, save, updatePost, type AppData, type SavedPost } from ".
 import { generate, ClaudeError } from "./lib/claude";
 import { renderThumbnail, splitTitle, svgToPng, copyImage } from "./lib/images";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { GuideDialog } from "./components/GuideDialog";
 
 const THEMES = loadThemes();
 const BASE = loadBasePrompt();
@@ -61,6 +62,7 @@ export default function App() {
   const [analystPicks, setAnalystPicks] = useState<TrackPriority[]>([]);
   // 분석가가 고른 기술 트랙 (요일 일정은 그대로, 그날 이번 한 편만)
   const [trackPick, setTrackPick] = useState<{ key: string; date: string } | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const [showSettings, setShowSettings] = useState(() => !load().settings.apiKey);
   const abort = useRef<AbortController | null>(null);
 
@@ -290,6 +292,7 @@ export default function App() {
       <header>
         <strong>Blog Studio</strong>
         <span className="muted">웹 · 내 API 키로</span>
+        <button className="secondary" onClick={() => setShowGuide(true)}>블로그 준비</button>
         <button className="secondary" onClick={() => setShowSettings(true)}>설정</button>
       </header>
 
@@ -426,6 +429,14 @@ export default function App() {
           )}
         </section>
       </main>
+
+      {showGuide && (
+        <GuideDialog
+          themes={LIFE ? [TECH, LIFE] : [TECH]}
+          initialSlug={theme.slug}
+          onClose={() => setShowGuide(false)}
+        />
+      )}
 
       {showSettings && (
         <SettingsDialog
