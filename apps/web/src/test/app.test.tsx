@@ -148,3 +148,40 @@ describe("App", () => {
     });
   });
 });
+
+describe("블로그 준비 가이드", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("버튼을 누르면 가이드 창, 탭 전환·테마 바꾸기·복사 버튼", async () => {
+    localStorage.setItem("blog-studio:v1", JSON.stringify({ settings: { apiKey: "k" }, progress: {}, posts: [] }));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    await act(async () => createRoot(host).render(<App />));
+
+    const open = [...host.querySelectorAll("header button")].find((b) => b.textContent === "블로그 준비") as HTMLButtonElement;
+    await act(async () => open.click());
+    const dialog = host.querySelector('[role="dialog"][aria-label="블로그 준비"]')!;
+    expect(dialog).not.toBeNull();
+    const tabs = [...dialog.querySelectorAll('[role="tab"]')] as HTMLButtonElement[];
+    expect(tabs.length).toBe(3);
+    expect(dialog.querySelector(".preview")!.textContent).toContain("알고리즘·코테 / CS 기초");
+
+    const tistoryTab = tabs.find((t) => t.textContent!.includes("티스토리"))!;
+    await act(async () => tistoryTab.click());
+    const copyBtn = [...dialog.querySelectorAll(".copy-list button")][0] as HTMLButtonElement;
+    expect(copyBtn.textContent).toContain("CSS · ");
+    await act(async () => copyBtn.click());
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(dialog.textContent).toContain("복사했어요");
+
+    const select = dialog.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      select.value = "life";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(dialog.querySelector(".preview")!.textContent).toContain("맛집·카페 / 여행·일상");
+    expect(dialog.textContent).not.toContain("{theme.");
+  });
+});

@@ -31,5 +31,5 @@
 
 - [x] 블로그 준비 가이드 창: `shared/guides/*.md`를 문서별로 보여 주고, ```css / ```html 블록에 복사 버튼, `{theme.*}` 자리에 테마 `design` 값 채우기 (상단 '블로그 준비' 버튼, 2026-11-16)
 - [ ] "새 채널 만들기" 마법사를 만들면 3단계에 위 가이드 창을 그대로 넣기 (지금은 마법사가 없음)
-- [ ] 웹앱에도 블로그 준비 가이드 (`shared/guides` 같이 사용, `{theme.*}` 채우기 규칙은 `BlogGuides.Fill`과 같게)
+- [x] 웹앱에도 블로그 준비 가이드 (`lib/guides.ts`·`GuideDialog`, 상단 '블로그 준비' 버튼, 테마 고르기·탭·css/html 복사 버튼, `{theme.*}` 채우기는 `BlogGuides.Fill`과 같게, 2026-11-21)
 - [ ] 썸네일 자동 생성: `design.thumbnail = typo_card`면 트랙 색·라벨·제목으로 1200×630 PNG 생성

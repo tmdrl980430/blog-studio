@@ -10,6 +10,7 @@ small { display:block; font-weight:400; color:var(--muted); margin-top:4px; }
 .muted { color:var(--muted); font-size:13px; }
 header { display:flex; gap:10px; align-items:center; padding:12px 20px; background:#fff; border-bottom:1px solid var(--line); }
 header button { margin-left:auto; }
+header button + button { margin-left:0; }
 main { display:grid; grid-template-columns:320px 1fr; gap:16px; padding:16px; max-width:1400px; margin:0 auto; }
 aside { background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; align-self:start; }
 aside > button { width:100%; padding:12px; }
@@ -48,3 +49,7 @@ article h1 { font-size:24px; margin:0 0 8px; }
 .file input { display:none; }
 .file { text-align:center; padding:8px 14px; border-radius:8px; cursor:pointer; font-weight:400; }
 @media (max-width: 860px) { main { grid-template-columns:1fr; } }
+.dialog.wide { width:min(820px,100%); }
+.tabs { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 12px; }
+.copy-list { display:flex; flex-direction:column; align-items:flex-start; gap:6px; margin-bottom:8px; }
+.preview.guide { max-height:60vh; overflow:auto; }
