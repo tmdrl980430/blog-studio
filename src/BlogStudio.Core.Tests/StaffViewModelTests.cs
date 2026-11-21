@@ -175,6 +175,31 @@ public class StaffViewModelTests
     }
 
     [Fact]
+    public async Task Auto_generate_logs_skip_reason_and_warns_when_nothing_was_published()
+    {
+        var publisher = new FakePublisher();
+        var (vm, store, ai) = await StartAsync(AutoPublish(), publisher);
+        Assert.False(vm.HasAutoPublishWarning);                                  // 기록이 없으면 경고하지 않음
+
+        ai.Write = LongPost;
+        ai.Review = "판정: 다시 쓰기\n- 주제와 본문이 맞지 않음";
+        Assert.True(await vm.AutoGenerateAsync());                               // 보류 → 발행 0건
+        Assert.True(vm.HasAutoPublishWarning);
+        Assert.Contains("자동 발행 0건", vm.AutoPublishWarning);
+        Assert.Contains("발행 보류", vm.AutoPublishWarning);
+
+        Assert.False(await vm.AutoGenerateAsync());                              // 오늘 글이 이미 있음 → 건너뜀도 기록
+        var latest = vm.LoadAutoLog()[0];
+        Assert.Equal(BlogStudio.Core.Stats.AutoLogOutcome.Skipped, latest.Outcome);
+        Assert.Contains("오늘 글이 이미 있음", latest.Result);
+        Assert.Contains("오늘 글이 이미 있음", vm.AutoPublishWarning);
+
+        store.SaveSettings(new AppSettings { TistoryName = "seunggi" });         // 자동 발행을 끄면 경고 숨김
+        vm.ReloadSettings();
+        Assert.False(vm.HasAutoPublishWarning);
+    }
+
+    [Fact]
     public async Task Auto_generate_reviews_but_does_not_publish_when_auto_publish_is_off()
     {
         var publisher = new FakePublisher();

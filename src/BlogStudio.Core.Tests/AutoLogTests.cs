@@ -33,6 +33,8 @@ public class AutoLogTests
     [InlineData("발행할 블로그를 고르지 않음", AutoLogOutcome.Failed)]
     [InlineData("발행 보류 — 편집자 다시 쓰기", AutoLogOutcome.Held)]
     [InlineData("발행 기준 통과 · 자동 발행 꺼짐", AutoLogOutcome.Off)]
+    [InlineData("건너뜀 — 오늘 글이 이미 있음", AutoLogOutcome.Skipped)]
+    [InlineData("글 생성 실패 — Claude Code 응답 없음", AutoLogOutcome.Failed)]
     public void Classifies_result_text(string result, AutoLogOutcome expected) =>
         Assert.Equal(expected, AutoLog.Classify(result));
 
@@ -68,5 +70,45 @@ public class AutoLogTests
         {
             Directory.Delete(root, true);
         }
+    }
+
+    [Fact]
+    public void Line_keeps_columns_when_reason_has_pipe_or_newline()
+    {
+        var line = AutoLog.Line("매일 자동 작성", null, AutoLog.SkippedPrefix + "로그인 | 만료\n다시 확인");
+        Assert.Equal("매일 자동 작성 | 편집자 - | 건너뜀 — 로그인 / 만료 다시 확인", line);
+        var e = AutoLog.ParseLine("2026-11-21 07:00 " + line);
+        Assert.Equal("매일 자동 작성", e.Title);
+        Assert.Equal(AutoLogOutcome.Skipped, e.Outcome);
+    }
+
+    private static readonly DateTime Now = new(2026, 11, 22, 9, 0, 0);
+
+    private static AutoLogEntry[] Log(params string[] lines) => lines.Select(AutoLog.ParseLine).ToArray();
+
+    [Fact]
+    public void No_warning_without_records_or_with_recent_publish()
+    {
+        Assert.Null(AutoLog.NoPublishWarning(Array.Empty<AutoLogEntry>(), Now));
+        Assert.Null(AutoLog.NoPublishWarning(Log(
+            "2026-11-21 10:00 글 | 편집자 발행 가능 | 티스토리 발행 ✓, 네이버 발행 실패 (창에서 확인)",
+            "2026-11-22 07:00 매일 자동 작성 | 편집자 - | 건너뜀 — 오늘 글이 이미 있음"), Now));
+    }
+
+    [Fact]
+    public void Warns_with_latest_cause_when_no_publish_in_a_day()
+    {
+        var w = AutoLog.NoPublishWarning(Log(
+            "2026-11-20 07:00 글 | 편집자 발행 가능 | 티스토리 발행 ✓",
+            "2026-11-22 07:00 BFS | 편집자 - | 티스토리 발행 실패 (창에서 확인)"), Now);
+        Assert.Equal("최근 24시간 자동 발행 0건 — 마지막 기록(11/22 07:00): 티스토리 발행 실패 (창에서 확인)", w);
+    }
+
+    [Fact]
+    public void Warns_that_auto_run_did_not_happen_when_log_is_stale()
+    {
+        var w = AutoLog.NoPublishWarning(Log("2026-11-19 07:40 WPF async | 편집자 발행 가능 | 티스토리 발행 ✓"), Now);
+        Assert.NotNull(w);
+        Assert.Contains("11/19 07:40 이후 자동 작성이 실행되지 않았어요", w);
     }
 }

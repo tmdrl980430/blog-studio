@@ -71,6 +71,7 @@ public partial class StatsWindow : Window
                 AutoLogOutcome.Held => ("보류", Color.FromRgb(0xB4, 0x53, 0x09)),
                 AutoLogOutcome.Off => ("작성만", Color.FromRgb(0x6B, 0x72, 0x80)),
                 AutoLogOutcome.Failed => ("실패", Color.FromRgb(0xDC, 0x26, 0x26)),
+                AutoLogOutcome.Skipped => ("건너뜀", Color.FromRgb(0xB4, 0x53, 0x09)),
                 _ => ("기록", Color.FromRgb(0x6B, 0x72, 0x80)),
             };
             var detail = e.Outcome == AutoLogOutcome.Other ? "" : $"편집자 {e.Editor} · {e.Result}";
