@@ -24,6 +24,13 @@
                         Click="OpenTopics_Click" VerticalAlignment="Center" Margin="0,0,6,0" />
                 <Button DockPanel.Dock="Right" Content="블로그 준비" ToolTip="네이버·티스토리 개설·꾸미기 가이드와 복사용 CSS" Style="{StaticResource SecondaryButton}"
                         Click="OpenGuides_Click" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <!-- 자동 발행 0건 경고 (auto-log.txt 기준, 자동 발행을 켰을 때만) -->
+                <Border DockPanel.Dock="Right" Background="#FEF3C7" CornerRadius="8" Padding="12,6" Margin="0,0,10,0"
+                        VerticalAlignment="Center" MaxWidth="460" ToolTip="{Binding AutoPublishWarning}"
+                        Visibility="{Binding HasAutoPublishWarning, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding AutoPublishWarning, StringFormat='⚠ {0}'}" Foreground="#92400E" FontSize="13"
+                               TextTrimming="CharacterEllipsis" />
+                </Border>
                 <!-- 새 버전 알림 (GitHub Releases) -->
                 <Border DockPanel.Dock="Right" Background="{StaticResource AccentSoft}" CornerRadius="8" Padding="12,4,4,4"
                         Margin="0,0,10,0" VerticalAlignment="Center"

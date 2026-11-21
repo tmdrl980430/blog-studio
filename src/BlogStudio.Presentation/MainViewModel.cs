@@ -153,23 +153,50 @@ public sealed partial class MainViewModel : ObservableObject
         if (_store.HasPostOn(_today(), _theme.Tracks))
         {
             StatusText = "매일 자동 작성: 오늘 글은 이미 있어요";
+            LogAutoSkip("오늘 글이 이미 있음");
             return false;
         }
         if (!IsProviderReady)
         {
             StatusText = $"매일 자동 작성: {ToolName}를 쓸 수 없어 건너뛰었어요 — 로그인 상태를 확인해 주세요";
+            LogAutoSkip($"{ToolName} 사용 불가 (로그인 만료·설치 확인)");
             return false;
         }
         if (_plan is null)
         {
             StatusText = "매일 자동 작성: 오늘은 쉬는 날이에요";
+            LogAutoSkip("오늘은 쉬는 날 (요일 일정)");
             return false;
         }
+        var topic = _plan.Topic ?? "매일 자동 작성";
         await GenerateCommand.ExecuteAsync(null);
         var made = PostReady && _store.HasPostOn(_today(), _theme.Tracks);
         if (made) await RunAutoStaffAsync();
+        else
+        {
+            AppendAutoLog(AutoLog.Line(topic, null, "글 생성 실패 — " + StatusText));
+            RefreshAutoPublishWarning();
+        }
         return made;
     }
+
+    private void LogAutoSkip(string reason)
+    {
+        AppendAutoLog(AutoLog.Line("매일 자동 작성", null, AutoLog.SkippedPrefix + reason));
+        RefreshAutoPublishWarning();
+    }
+
+    /// <summary>자동 발행을 켰는데 최근 24시간 발행이 0건이면 상단에 보여 줄 경고. 비어 있으면 숨김.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAutoPublishWarning))]
+    private string _autoPublishWarning = "";
+
+    public bool HasAutoPublishWarning => AutoPublishWarning.Length > 0;
+
+    private void RefreshAutoPublishWarning() =>
+        AutoPublishWarning = _settings.AutoPublishEnabled
+            ? AutoLog.NoPublishWarning(AutoLog.ReadRecent(_store.Root, 50), DateTime.Now) ?? ""
+            : "";
 
     /// <summary>
     /// 자동 작성 다음 단계: 코드 오류 고치기 → 편집자 검수 → 의견 반영(한 번) → 발행 기준 → (설정에서 켰으면) 자동 발행.
@@ -196,7 +223,8 @@ public sealed partial class MainViewModel : ObservableObject
         if (!_settings.AutoPublishEnabled) result = gate.Reason + " · 자동 발행 꺼짐";
         else if (!gate.Ok) result = "발행 보류 — " + gate.Reason;
         else result = await AutoPublishAsync();
-        AppendAutoLog($"{title} | 편집자 {verdict ?? "-"} | {result}");
+        AppendAutoLog(AutoLog.Line(title, verdict, result));
+        RefreshAutoPublishWarning();
         StatusText = "매일 자동 작성: " + result;
     }
 
@@ -818,6 +846,7 @@ public sealed partial class MainViewModel : ObservableObject
         ThemeName = _theme.Name;
         LoadCategories();
         RefreshHistory();
+        RefreshAutoPublishWarning();
 
         if (_store.LoadLatest() is { } latest)
         {
@@ -950,6 +979,7 @@ public sealed partial class MainViewModel : ObservableObject
         ThemeName = _theme.Name;
         LoadCategories();
         RefreshHistory();
+        RefreshAutoPublishWarning();
         OnPropertyChanged(nameof(ToolName));
         OnPropertyChanged(nameof(AccountName));
         OnPropertyChanged(nameof(SetupTitle));
