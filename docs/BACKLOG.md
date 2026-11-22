@@ -33,4 +33,4 @@
 - [x] 블로그 준비 가이드 창: `shared/guides/*.md`를 문서별로 보여 주고, ```css / ```html 블록에 복사 버튼, `{theme.*}` 자리에 테마 `design` 값 채우기 (상단 '블로그 준비' 버튼, 2026-11-16)
 - [ ] "새 채널 만들기" 마법사를 만들면 3단계에 위 가이드 창을 그대로 넣기 (지금은 마법사가 없음)
 - [x] 웹앱에도 블로그 준비 가이드 (`lib/guides.ts`·`GuideDialog`, 상단 '블로그 준비' 버튼, 테마 고르기·탭·css/html 복사 버튼, `{theme.*}` 채우기는 `BlogGuides.Fill`과 같게, 2026-11-21)
-- [ ] 썸네일 자동 생성: `design.thumbnail = typo_card`면 트랙 색·라벨·제목으로 1200×630 PNG 생성
+- [x] 썸네일 자동 생성: `design.thumbnail = typo_card`면 트랙 색·라벨·제목으로 1200×630 PNG 생성 (생성은 이전에 반영. 2026-11-23: 데스크톱 `ThemeDesign.MakesThumbnail`·웹 `makesThumbnail`으로 typo_card(또는 빈 값)일 때만 만들고, 다른 값이면 썸네일·자리 표시 없이 그림을 1번부터)

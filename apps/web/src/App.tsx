@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { loadThemes, loadBasePrompt, colorFor, type ThemePack, type Track } from "./lib/themes";
+import { loadThemes, loadBasePrompt, colorFor, makesThumbnail, type ThemePack, type Track } from "./lib/themes";
 import { parsePost, tagLine, toFileText, type PostDraft } from "./lib/posts";
 import { matchCategory, resolveCategory } from "./lib/categories";
 import {
@@ -94,20 +94,24 @@ export default function App() {
   // 글이 바뀌면 썸네일·그림 이미지와 미리보기 다시 만들기
   const view = useMemo(() => {
     if (!current) return null;
-    const { markdown, figures } = extractFigures(current.body);
-    return { markdown, figures };
+    const pack = current.track in TECH.curriculum ? TECH : LIFE ?? TECH;
+    const thumbnail = makesThumbnail(pack.design);
+    const { markdown, figures } = extractFigures(current.body, thumbnail ? 2 : 1);
+    return { markdown, figures, pack, thumbnail };
   }, [current]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       if (!current || !view) return setImages([]);
-      const color = colorFor(current.track in TECH.curriculum ? TECH : LIFE ?? TECH, current.track);
-      const trackName = (TECH.curriculum[current.track] ?? LIFE?.curriculum[current.track])?.name ?? current.track;
-      const lines = current.thumbnail.length ? current.thumbnail : splitTitle(current.title);
-      const list: ImageItem[] = [
-        { number: 1, label: "썸네일", url: await renderThumbnail(trackName, lines, data.settings.blogName || data.settings.author, color) },
-      ];
+      const list: ImageItem[] = [];
+      if (view.thumbnail) {
+        const color = colorFor(view.pack, current.track);
+        const trackName = (TECH.curriculum[current.track] ?? LIFE?.curriculum[current.track])?.name ?? current.track;
+        const lines = current.thumbnail.length ? current.thumbnail : splitTitle(current.title);
+        const footer = data.settings.blogName || data.settings.author;
+        list.push({ number: 1, label: "썸네일", url: await renderThumbnail(trackName, lines, footer, color) });
+      }
       for (const f of view.figures) {
         try {
           list.push({ number: f.number, label: f.caption, url: await svgToPng(f.svg) });
@@ -123,10 +127,10 @@ export default function App() {
   }, [current, view, data.settings.blogName, data.settings.author]);
 
   const previewHtml = useMemo(
-    () => (view ? toBlogHtml(view.markdown, "preview", view.figures, images[0]?.url ?? "") : ""),
+    () => (view ? toBlogHtml(view.markdown, "preview", view.figures, view.thumbnail ? (images[0]?.number === 1 ? images[0].url : "") : undefined) : ""),
     [view, images],
   );
-  const copyHtml = useMemo(() => (view ? toBlogHtml(view.markdown, "copy", view.figures, "") : ""), [view]);
+  const copyHtml = useMemo(() => (view ? toBlogHtml(view.markdown, "copy", view.figures, view.thumbnail ? "" : undefined) : ""), [view]);
 
   const run = async (work: (signal: AbortSignal) => Promise<void>) => {
     abort.current = new AbortController();
