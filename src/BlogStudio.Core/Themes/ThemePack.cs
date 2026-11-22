@@ -45,6 +45,13 @@ public sealed class ThemeDesign
     public List<string> Categories { get; set; } = new();
     public string TistorySkin { get; set; } = "";
     public string Thumbnail { get; set; } = "typo_card";
+
+    /// <summary>썸네일을 만드는 방식인지 — 지금은 타이포 카드(typo_card)만 그린다. 비어 있으면 기본값(typo_card).
+    /// 다른 값(none 등)이면 썸네일을 만들지 않는다.</summary>
+    public bool MakesThumbnail => IsTypoCard(Thumbnail);
+
+    public static bool IsTypoCard(string? value) =>
+        string.IsNullOrWhiteSpace(value) || string.Equals(value.Trim(), "typo_card", StringComparison.OrdinalIgnoreCase);
     public Dictionary<string, string> TrackColors { get; set; } = new();
     public List<string> Guides { get; set; } = new();
 }

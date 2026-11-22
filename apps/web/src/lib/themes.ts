@@ -33,6 +33,8 @@ export interface ThemeDesign {
   layout: string;
   categories: string[];
   tistorySkin: string;
+  /** 썸네일 방식 (비어 있으면 typo_card) */
+  thumbnail: string;
   /** 보여 줄 가이드 순서 (shared/guides/<key>.md) */
   guides: string[];
 }
@@ -78,11 +80,18 @@ export function parseTheme(themeYaml: string, curriculumFiles: Record<string, st
       layout: str(design.layout),
       categories: list(design.categories),
       tistorySkin: str(design.tistory_skin),
+      thumbnail: str(design.thumbnail),
       guides: list(design.guides),
     },
     curriculum,
   };
 }
+
+/** 데스크톱 ThemeDesign.MakesThumbnail 과 같은 규칙: 비어 있거나 typo_card 면 타이포 카드 썸네일을 만든다. */
+export const makesThumbnail = (design: Pick<ThemeDesign, "thumbnail">) => {
+  const v = design.thumbnail.trim().toLowerCase();
+  return v === "" || v === "typo_card";
+};
 
 export const colorFor = (theme: ThemePack, track: string) =>
   theme.trackColors[track] || theme.accent || "#2F5BEA";

@@ -79,3 +79,27 @@ public class BlogGuideTests
         Assert.Equal("naver", Assert.Single(defaults).Title);       // 머리말이 없으면 키를 제목으로
     }
 }
+
+public class ThemeThumbnailTests
+{
+    [Fact]
+    public void Shared_themes_make_typo_card_thumbnails()
+    {
+        var repo = Fixtures.Themes();
+        foreach (var slug in new[] { "tech", "life" })
+            Assert.True(repo.Load(slug).Design.MakesThumbnail);
+    }
+
+    [Theory]
+    [InlineData("typo_card", true)]
+    [InlineData(" Typo_Card ", true)]
+    [InlineData("", true)]          // 비어 있으면 기본값(타이포 카드)
+    [InlineData(null, true)]
+    [InlineData("none", false)]
+    [InlineData("photo", false)]    // 아직 모르는 방식은 만들지 않음
+    public void Only_typo_card_makes_a_thumbnail(string? value, bool expected)
+    {
+        Assert.Equal(expected, ThemeDesign.IsTypoCard(value));
+        Assert.Equal(expected, new ThemeDesign { Thumbnail = value! }.MakesThumbnail);
+    }
+}

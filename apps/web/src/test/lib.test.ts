@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadThemes, loadBasePrompt, colorFor } from "../lib/themes";
+import { loadThemes, loadBasePrompt, colorFor, makesThumbnail } from "../lib/themes";
 import { parsePost, toFileText } from "../lib/posts";
 import { parseCategory, matchCategory, resolveCategory, categoryForTrack, formatCategory } from "../lib/categories";
 import { buildPrompt, buildRevision, AUTO_TOPIC } from "../lib/prompt";
@@ -146,6 +146,23 @@ describe("render", () => {
   it("썸네일 제목을 두 줄로", () => {
     expect(splitTitle("BFS로 미로 최단 거리 구하기")).toEqual(["BFS로 미로 최단", "거리 구하기"]);
     expect(splitTitle("짧은 제목")).toEqual(["짧은 제목"]);
+  });
+  it("design.thumbnail 이 typo_card(또는 비어 있음)일 때만 썸네일을 만든다", () => {
+    expect(themes.tech.design.thumbnail).toBe("typo_card");
+    expect(makesThumbnail(themes.tech.design)).toBe(true);
+    if (themes.life) expect(makesThumbnail(themes.life.design)).toBe(true);
+    expect(makesThumbnail({ thumbnail: "" })).toBe(true);
+    expect(makesThumbnail({ thumbnail: " Typo_Card " })).toBe(true);
+    expect(makesThumbnail({ thumbnail: "none" })).toBe(false);
+    expect(makesThumbnail({ thumbnail: "photo" })).toBe(false);
+  });
+  it("썸네일을 만들지 않으면 자리 표시 없이 그림이 1번부터", () => {
+    const post = parsePost(RESPONSE, "BFS", "algorithm", "2026-11-16");
+    const { markdown, figures } = extractFigures(post.body, 1);
+    expect(figures).toEqual([expect.objectContaining({ number: 1, caption: "탐색 순서" })]);
+    const copy = toBlogHtml(markdown, "copy", figures);
+    expect(copy).not.toContain("썸네일");
+    expect(copy).toContain("[이미지 1: 탐색 순서]");
   });
 });
 
@@ -317,7 +334,7 @@ describe("guides (블로그 준비 가이드, 데스크톱 BlogGuides와 같은 
   });
 
   it("모르는 이름·빈 값은 그대로 두고 CRLF·머리말·주석을 처리한다", () => {
-    const theme = { ...themes.tech, name: "테스트", design: { accent: "#123456", layout: "", categories: [], tistorySkin: "", guides: [] } };
+    const theme = { ...themes.tech, name: "테스트", design: { accent: "#123456", layout: "", categories: [], tistorySkin: "", thumbnail: "", guides: [] } };
     const text = "---\r\ntitle: \"샘플\"\r\n---\r\n<!-- 메모 -->\r\n색 {theme.accent}, 카테고리 {theme.categories}, {theme.unknown}\r\n\r\n```css\r\na{color:red}\r\n```\r\n\r\n```python\r\nprint(1)\r\n```\r\n";
     const guide = parseGuide("sample", text, theme);
     expect(guide.title).toBe("샘플");

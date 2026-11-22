@@ -1144,7 +1144,7 @@ public sealed partial class MainViewModel : ObservableObject
     private ImagePipelineOptions BuildImageOptions(PlannedTopic plan, ThemePack theme, bool fromMemo,
         IReadOnlyList<string> photos) => new()
     {
-        Thumbnail = _settings.ThumbnailEnabled,
+        Thumbnail = _settings.ThumbnailEnabled && theme.Design.MakesThumbnail,
         ThumbnailLabel = fromMemo ? $"{plan.Track.Name} · 후기"
             : IsMemoCategory ? plan.Track.Name
             : $"{plan.Track.Name} · {plan.Index + 1}",
