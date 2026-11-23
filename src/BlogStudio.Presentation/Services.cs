@@ -32,6 +32,42 @@ public interface IAutoFillLauncher
     /// 지원하지 않는 기기는 false (아무것도 하지 않음).
     /// </summary>
     Task<bool> PublishAsync(AutoFillPayload payload) => Task.FromResult(false);
+
+    /// <summary>
+    /// 자동 발행 + 멈춘 단계·이유. 기본 구현은 <see cref="PublishAsync"/> 결과만 옮긴다(이유 모름).
+    /// </summary>
+    async Task<AutoPublishResult> PublishWithReasonAsync(AutoFillPayload payload) =>
+        new(await PublishAsync(payload));
+}
+
+/// <summary>자동 발행이 멈춘 단계 (auto-log에서 원인을 나눠 보이기 위함).</summary>
+public enum AutoPublishStage
+{
+    /// <summary>앱 안 브라우저 로그인이 풀림.</summary>
+    Login,
+    /// <summary>글쓰기 화면 찾기·제목·본문·이미지·태그 채우기 실패 (발행 버튼은 누르지 않음).</summary>
+    Fill,
+    /// <summary>발행 버튼·확인 버튼·발행 완료 확인 실패.</summary>
+    Publish,
+}
+
+/// <summary>자동 발행 결과. 실패면 <see cref="FailedAt"/>·<see cref="Reason"/>을 알 수 있을 때만 채운다.</summary>
+public sealed record AutoPublishResult(bool Ok, AutoPublishStage? FailedAt = null, string? Reason = null)
+{
+    /// <summary>auto-log 결과 칸에 쓸 문구. 성공은 예전과 같은 "○○ 발행 ✓".</summary>
+    public string LogText(string blog)
+    {
+        if (Ok) return $"{blog} 발행 ✓";
+        // 결과 칸은 ", "로 블로그를 나누므로 이유 안의 쉼표는 바꾼다
+        var why = string.IsNullOrWhiteSpace(Reason) ? "" : " — " + Reason.Trim().Replace(", ", " · ");
+        return FailedAt switch
+        {
+            AutoPublishStage.Login => $"{blog} 로그인 필요{why}",
+            AutoPublishStage.Fill => $"{blog} 채우기 실패{why}",
+            AutoPublishStage.Publish => $"{blog} 발행 실패{why}",
+            _ => $"{blog} 발행 실패 (창에서 확인)",
+        };
+    }
 }
 
 /// <summary>매일 정해진 시각에 앱을 "--auto-generate"로 실행 (Windows: 작업 스케줄러).</summary>

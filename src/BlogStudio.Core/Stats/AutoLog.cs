@@ -131,9 +131,40 @@ public static class AutoLog
         var latest = timed[0];
         var head = $"최근 {hours}시간 자동 발행 0건";
         if (latest.Time < since)
-            return $"{head} — {latest.TimeLabel} 이후 자동 작성이 실행되지 않았어요 (PC 전원·작업 스케줄러를 확인해 주세요)";
-        var cause = latest.Outcome == AutoLogOutcome.Other ? latest.Title : latest.Result;
-        return $"{head} — 마지막 기록({latest.TimeLabel}): {cause}";
+            return $"{head} ({AppNotRun}) — {latest.TimeLabel} 이후 자동 작성이 실행되지 않았어요 (PC 전원·작업 스케줄러를 확인해 주세요)";
+        var detail = latest.Outcome == AutoLogOutcome.Other ? latest.Title : latest.Result;
+        return $"{head} ({CauseOf(latest)}) — 마지막 기록({latest.TimeLabel}): {detail}";
+    }
+
+    /// <summary>마지막 기록이 하루보다 오래됐을 때의 원인 이름 (PC 꺼짐·앱 미실행·작업 스케줄러).</summary>
+    public const string AppNotRun = "앱 실행 안 됨";
+
+    /// <summary>
+    /// 발행이 안 된 한 줄의 원인 이름: 앱이 돌았는데 어디서 멈췄는지 나눈다.
+    /// 로그인 필요 → 채우기 실패 → 발행 실패 순으로 본다(여러 블로그면 가장 앞 단계).
+    /// </summary>
+    public static string CauseOf(AutoLogEntry e)
+    {
+        var r = e.Result;
+        switch (e.Outcome)
+        {
+            case AutoLogOutcome.Published:
+            case AutoLogOutcome.Partial:
+                return "발행됨";
+            case AutoLogOutcome.Held:
+                return "발행 기준 보류";
+            case AutoLogOutcome.Off:
+                return "자동 발행 꺼짐";
+            case AutoLogOutcome.Skipped:
+                return "자동 작성 건너뜀";
+            case AutoLogOutcome.Other:
+                return "알 수 없음";
+        }
+        if (r.StartsWith("글 생성 실패", StringComparison.Ordinal)) return "글 생성 실패";
+        if (r.Contains("로그인 필요", StringComparison.Ordinal)) return "로그인 필요";
+        if (r.Contains("채우기 실패", StringComparison.Ordinal)) return "채우기 실패";
+        if (r.Contains("주소 없음", StringComparison.Ordinal) || r.Contains("고르지 않음", StringComparison.Ordinal)) return "설정 확인";
+        return "발행 실패";
     }
 
     /// <summary>결과 문구 → 종류. MainViewModel이 쓰는 문구 기준.</summary>

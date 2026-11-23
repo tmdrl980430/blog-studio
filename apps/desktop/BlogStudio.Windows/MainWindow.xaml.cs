@@ -62,7 +62,12 @@ public partial class MainWindow : Window
                 ShowFallback("WebView2를 시작하지 못했어요: " + ex.Message);
             }
             await _vm.InitializeCommand.ExecuteAsync(null);
-            if (_autoGenerate) await _vm.AutoGenerateAsync();
+            if (_autoGenerate)
+            {
+                await _vm.AutoGenerateAsync();
+                // 발행 0건 경고(원인 포함)가 떠 있으면 작업 표시줄에서 알림
+                if (_vm.HasAutoPublishWarning) Services.TaskbarFlash.Start(this);
+            }
         };
     }
 

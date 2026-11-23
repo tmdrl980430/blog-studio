@@ -240,13 +240,13 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (url is null) { results.Add($"{name} 주소 없음"); continue; }
             StatusText = $"매일 자동 작성: {name}에 발행 중…";
-            var ok = await _autoFill.PublishAsync(BuildPayload(platform, url));
-            if (ok)
+            var r = await _autoFill.PublishWithReasonAsync(BuildPayload(platform, url));
+            if (r.Ok)
             {
                 if (platform == BlogPlatform.Naver) IsPublishedNaver = true;
                 else IsPublishedTistory = true;
             }
-            results.Add(ok ? $"{name} 발행 ✓" : $"{name} 발행 실패 (창에서 확인)");
+            results.Add(r.LogText(name));
         }
         return results.Count == 0 ? "발행할 블로그를 고르지 않음" : string.Join(", ", results);
     }
