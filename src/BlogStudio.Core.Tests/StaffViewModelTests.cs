@@ -46,12 +46,46 @@ public class StaffViewModelTests
         public bool Result = true;
         public void Open(AutoFillPayload payload) { }
 
+        /// <summary>정하면 실패 단계·이유를 돌려준다 (null이면 기본 구현 = PublishAsync 결과만).</summary>
+        public AutoPublishResult? Failure;
+
         public Task<bool> PublishAsync(AutoFillPayload payload)
         {
             Published.Add(payload);
             return Task.FromResult(Result);
         }
+
+        public async Task<AutoPublishResult> PublishWithReasonAsync(AutoFillPayload payload) =>
+            Failure ?? new AutoPublishResult(await PublishAsync(payload));
     }
+
+    [Fact]
+    public async Task Auto_publish_failure_logs_stage_and_reason_in_warning()
+    {
+        var publisher = new FakePublisher
+        {
+            Failure = new AutoPublishResult(false, AutoPublishStage.Fill, "본문 칸을 찾지 못했어요"),
+        };
+        var (vm, store, ai) = await StartAsync(AutoPublish(), publisher);
+        ai.Write = LongPost;
+
+        Assert.True(await vm.AutoGenerateAsync());
+
+        Assert.False(vm.IsPublishedTistory);
+        var logged = vm.LoadAutoLog()[0];
+        Assert.Equal("티스토리 채우기 실패 — 본문 칸을 찾지 못했어요", logged.Result);
+        Assert.Equal(BlogStudio.Core.Stats.AutoLogOutcome.Failed, logged.Outcome);
+        Assert.Contains("(채우기 실패)", vm.AutoPublishWarning);
+    }
+
+    [Theory]
+    [InlineData(true, null, null, "티스토리 발행 ✓")]
+    [InlineData(false, null, null, "티스토리 발행 실패 (창에서 확인)")]
+    [InlineData(false, AutoPublishStage.Login, "로그인이 풀려 있음", "티스토리 로그인 필요 — 로그인이 풀려 있음")]
+    [InlineData(false, AutoPublishStage.Publish, "발행 버튼을 찾지 못했어요", "티스토리 발행 실패 — 발행 버튼을 찾지 못했어요")]
+    [InlineData(false, AutoPublishStage.Fill, "제목, 본문 실패", "티스토리 채우기 실패 — 제목 · 본문 실패")]
+    public void Publish_result_log_text(bool ok, AutoPublishStage? stage, string? reason, string expected) =>
+        Assert.Equal(expected, new AutoPublishResult(ok, stage, reason).LogText("티스토리"));
 
     /// <summary>발행 기준(본문 길이)을 넘는 글.</summary>
     private static readonly string LongPost =

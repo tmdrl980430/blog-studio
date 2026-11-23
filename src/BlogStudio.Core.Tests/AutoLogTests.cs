@@ -101,7 +101,7 @@ public class AutoLogTests
         var w = AutoLog.NoPublishWarning(Log(
             "2026-11-20 07:00 글 | 편집자 발행 가능 | 티스토리 발행 ✓",
             "2026-11-22 07:00 BFS | 편집자 - | 티스토리 발행 실패 (창에서 확인)"), Now);
-        Assert.Equal("최근 24시간 자동 발행 0건 — 마지막 기록(11/22 07:00): 티스토리 발행 실패 (창에서 확인)", w);
+        Assert.Equal("최근 24시간 자동 발행 0건 (발행 실패) — 마지막 기록(11/22 07:00): 티스토리 발행 실패 (창에서 확인)", w);
     }
 
     [Fact]
@@ -110,5 +110,30 @@ public class AutoLogTests
         var w = AutoLog.NoPublishWarning(Log("2026-11-19 07:40 WPF async | 편집자 발행 가능 | 티스토리 발행 ✓"), Now);
         Assert.NotNull(w);
         Assert.Contains("11/19 07:40 이후 자동 작성이 실행되지 않았어요", w);
+        Assert.Contains("(" + AutoLog.AppNotRun + ")", w);
+    }
+
+    [Theory]
+    [InlineData("티스토리 로그인 필요 — 로그인이 풀려 있어 자동 발행을 멈췄어요", "로그인 필요")]
+    [InlineData("티스토리 채우기 실패 — 본문 칸을 찾지 못했어요", "채우기 실패")]
+    [InlineData("티스토리 발행 실패 — 발행 확인 버튼을 찾지 못했어요", "발행 실패")]
+    [InlineData("티스토리 발행 실패 (창에서 확인)", "발행 실패")]
+    [InlineData("네이버 채우기 실패 — 이미지를 모두 넣지 못해 발행하지 않았어요, 티스토리 발행 실패 — 발행 버튼을 찾지 못했어요", "채우기 실패")]
+    [InlineData("네이버 주소 없음", "설정 확인")]
+    [InlineData("글 생성 실패 — Claude Code 응답 없음", "글 생성 실패")]
+    [InlineData("발행 보류 — 본문이 짧아요", "발행 기준 보류")]
+    [InlineData("건너뜀 — 오늘은 쉬는 날 (요일 일정)", "자동 작성 건너뜀")]
+    public void Cause_separates_login_fill_and_publish(string result, string cause)
+    {
+        var e = AutoLog.ParseLine("2026-11-22 07:00 글 | 편집자 - | " + result);
+        Assert.Equal(cause, AutoLog.CauseOf(e));
+    }
+
+    [Fact]
+    public void Warning_names_fill_failure_as_cause()
+    {
+        var w = AutoLog.NoPublishWarning(Log(
+            "2026-11-22 07:10 BFS | 편집자 발행 가능 | 티스토리 채우기 실패 — 본문 칸을 찾지 못했어요"), Now);
+        Assert.Equal("최근 24시간 자동 발행 0건 (채우기 실패) — 마지막 기록(11/22 07:10): 티스토리 채우기 실패 — 본문 칸을 찾지 못했어요", w);
     }
 }

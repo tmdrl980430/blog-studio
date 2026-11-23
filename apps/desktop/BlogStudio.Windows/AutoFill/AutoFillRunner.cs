@@ -80,8 +80,30 @@ public sealed class AutoFillRunner
         }
     }
 
+    /// <summary>자동 발행이 마지막으로 멈춘 단계·이유 (auto-log 원인 구분용). 성공하면 null.</summary>
+    public AutoPublishResult? LastFailure { get; private set; }
+
+    /// <summary>진단 단계 이름 → 자동 발행 단계. 발행 버튼부터는 발행, 그 앞은 모두 채우기.</summary>
+    public static AutoPublishStage StageOf(string step) => step switch
+    {
+        "login" => AutoPublishStage.Login,
+        "publish-open" or "publish-confirm" or "publish-done" => AutoPublishStage.Publish,
+        _ => AutoPublishStage.Fill,
+    };
+
+    /// <summary>안내 문구에서 " — " 앞의 짧은 이유만 (뒤는 사용자에게 하는 안내).</summary>
+    public static string ShortReason(string message)
+    {
+        var i = message.IndexOf(" — ", StringComparison.Ordinal);
+        return (i > 0 ? message[..i] : message).Trim();
+    }
+
+    private void RememberFailure(string step, string message) =>
+        LastFailure = new AutoPublishResult(false, StageOf(step), ShortReason(message));
+
     private async Task<bool> Fail(string step, string message)
     {
+        RememberFailure(step, message);
         _log(message);
         if (await SaveDiagnosticsAsync(step) is not null) _log("진단 기록을 남겼어요 — '진단 기록 열기'로 볼 수 있어요");
         return false;
@@ -311,8 +333,15 @@ public sealed class AutoFillRunner
     /// </summary>
     public async Task<bool> RunAndPublishAsync(CancellationToken ct)
     {
+        LastFailure = null;
         var state = await WaitReadyAsync(TimeSpan.FromSeconds(40), ct);
-        if (state.Login) { _log("로그인이 풀려 있어 자동 발행을 멈췄어요 — 이 창에서 로그인해 두면 다음부터 이어져요"); return false; }
+        if (state.Login)
+        {
+            const string message = "로그인이 풀려 있어 자동 발행을 멈췄어요 — 이 창에서 로그인해 두면 다음부터 이어져요";
+            RememberFailure("login", message);
+            _log(message);
+            return false;
+        }
         if (state.Blocked) return await Fail("publish-blocked", "에디터에 팝업이 떠 있어 자동 발행을 멈췄어요");
         if (!state.Title && !state.Body) return await Fail("page", "글쓰기 화면을 찾지 못해 자동 발행을 멈췄어요");
 
