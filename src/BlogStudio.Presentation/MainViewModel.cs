@@ -222,7 +222,7 @@ public sealed partial class MainViewModel : ObservableObject
         string result;
         if (!_settings.AutoPublishEnabled) result = gate.Reason + " · 자동 발행 꺼짐";
         else if (!gate.Ok) result = "발행 보류 — " + gate.Reason;
-        else result = await AutoPublishAsync();
+        else result = AutoLog.WithCategoryNote(await AutoPublishAsync(), _post?.Category);   // 카테고리 선택은 아직 못 함 (#19)
         AppendAutoLog(AutoLog.Line(title, verdict, result));
         RefreshAutoPublishWarning();
         StatusText = "매일 자동 작성: " + result;
