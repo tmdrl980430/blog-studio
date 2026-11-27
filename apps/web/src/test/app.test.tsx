@@ -38,6 +38,25 @@ describe("App", () => {
     expect((host.querySelector("aside textarea") as HTMLTextAreaElement).placeholder).toContain("가게 이름");
   });
 
+  it("글을 열면 발행 전 점검을 보여 준다", async () => {
+    const post = {
+      id: "p1", createdAt: "2026-11-17T00:00:00Z", publishedTo: [], title: "BFS 정리", tags: ["BFS"], summary: "요약",
+      body: "## 본문\n\n내용 (확인 필요)\n\n```svg\n<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>\n```\n", topic: "BFS", track: "algorithm", date: "2026-11-17", thumbnail: [],
+    };
+    localStorage.setItem("blog-studio:v1", JSON.stringify({ settings: { apiKey: "k" }, progress: {}, posts: [post] }));
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    await act(async () => createRoot(host).render(<App />));
+    await act(async () => (host.querySelector(".history button") as HTMLButtonElement).click());
+
+    const checks = host.querySelector(".checks")!;
+    expect(checks.querySelector("summary")!.textContent).toContain("확인할 것 5개");
+    const texts = [...checks.querySelectorAll("li")].map((li) => li.textContent);
+    expect(texts).toContain("✓ 이미지 2장"); // 썸네일 + 그림 1개 (그림 자리로 세지 않음)
+    expect(texts.some((t) => t?.startsWith("! '(확인 필요)' 1곳"))).toBe(true);
+    expect(texts.some((t) => t?.includes("처리 안 된"))).toBe(false);
+  });
+
   describe("AI 직원", () => {
     afterEach(() => vi.unstubAllGlobals());
 
