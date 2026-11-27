@@ -47,6 +47,7 @@ src/BlogStudio.*              PC 앱 공용 C# (Core, Presentation, Tests)
 shared/                       테마 팩 · 공통 프롬프트 · AI 직원(staff) · 스키마 · 스타일 (모든 앱이 같이 읽음)
 supabase/                     DB 마이그레이션, Edge Functions
 tools/python-bot              초기 프로토타입 (지금 매일 쓰는 파이썬 봇)
+tools/rss-watch               블로그 RSS로 마지막 발행 확인 (PC 꺼진 날 클라우드 알림용)
 docs/                         설계 문서
 ```
 
