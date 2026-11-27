@@ -12,6 +12,7 @@ import { plan, planTrack, isoDate, DAY_LABELS, dayKey, type PlannedTopic } from 
 import { toBlogHtml, extractFigures, copyRich } from "./lib/render";
 import { addPost, load, save, updatePost, type AppData, type SavedPost } from "./lib/storage";
 import { generate, ClaudeError } from "./lib/claude";
+import { checkPost } from "./lib/review";
 import { renderThumbnail, splitTitle, svgToPng, copyImage } from "./lib/images";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { GuideDialog } from "./components/GuideDialog";
@@ -129,6 +130,11 @@ export default function App() {
   const previewHtml = useMemo(
     () => (view ? toBlogHtml(view.markdown, "preview", view.figures, view.thumbnail ? (images[0]?.number === 1 ? images[0].url : "") : undefined) : ""),
     [view, images],
+  );
+  // 발행 전 점검 (데스크톱 PostChecker와 같은 기준). 그림은 뽑아낸 뒤 본문 + 앱이 만든 이미지 수로 본다.
+  const checks = useMemo(
+    () => (current && view ? checkPost({ title: current.title, tags: current.tags, body: view.markdown }, (view.thumbnail ? 1 : 0) + view.figures.length) : []),
+    [current, view],
   );
   const copyHtml = useMemo(() => (view ? toBlogHtml(view.markdown, "copy", view.figures, view.thumbnail ? "" : undefined) : ""), [view]);
 
@@ -389,6 +395,10 @@ export default function App() {
                 <label className="check"><input type="checkbox" checked={current.publishedTo.includes("naver")} onChange={() => togglePublished("naver")} />네이버에 올림</label>
                 <label className="check"><input type="checkbox" checked={current.publishedTo.includes("tistory")} onChange={() => togglePublished("tistory")} />티스토리에 올림</label>
               </div>
+              <details className="checks" aria-label="발행 전 점검">
+                <summary>발행 전 점검 · {checks.filter((c) => !c.ok).length ? `확인할 것 ${checks.filter((c) => !c.ok).length}개` : "모두 좋아요"}</summary>
+                <ul>{checks.map((c) => <li key={c.text} className={c.ok ? "ok" : "warn"}>{c.ok ? "✓" : "!"} {c.text}</li>)}</ul>
+              </details>
               <div className="revise">
                 <input value={revision} placeholder="고칠 점 (예: 도입부를 두 문장으로)" onChange={(e) => setRevision(e.target.value)} disabled={busy} />
                 <button onClick={onRevise} disabled={busy || !revision.trim()}>Claude로 고치기</button>

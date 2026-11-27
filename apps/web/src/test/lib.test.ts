@@ -8,6 +8,7 @@ import { toBlogHtml, extractFigures } from "../lib/render";
 import { addPost, load, save, updatePost, exportJson } from "../lib/storage";
 import { generate, ClaudeError } from "../lib/claude";
 import { splitTitle } from "../lib/images";
+import { checkPost, textLength } from "../lib/review";
 import { loadGuides, parseGuide, fillGuide } from "../lib/guides";
 import {
   buildTopicIdeas, parseTopicIdeas, buildEditorReview, parseEditorReview, revisionFromReview, keywordRequest, loadStaffPrompt,
@@ -350,5 +351,38 @@ describe("guides (블로그 준비 가이드, 데스크톱 BlogGuides와 같은 
     expect(loadGuides(theme, files).map((g) => g.key)).toEqual(["naver", "design"]);
     const custom = { ...themes.tech, design: { ...themes.tech.design, guides: ["design", "missing"] } };
     expect(loadGuides(custom, files).map((g) => g.title)).toEqual(["디자인"]);
+  });
+});
+
+describe("발행 전 점검 (PostChecker와 같은 기준)", () => {
+  const post = (title: string, tags: number, body: string) => ({ title, tags: Array.from({ length: tags }, (_, i) => `태그${i + 1}`), body });
+
+  it("잘 쓴 글은 모두 통과하고 표를 알려 준다", () => {
+    const body = "![썸네일](images/00_thumbnail.png)\n\n## 하나\n" + "가".repeat(900) + "\n\n## 둘\n| a | b |\n|---|---|\n| 1 | 2 |\n\n## 셋\n" + "나".repeat(700);
+    const checks = checkPost(post("파이썬 코테 필수 문법 정리하기", 6, body));
+    expect(checks.every((c) => c.ok)).toBe(true);
+    expect(checks.map((c) => c.text)).toContain("표 있음");
+  });
+
+  it("문제마다 고칠 방향을 알려 준다", () => {
+    const body = "## 하나\n짧은 본문 (확인 필요)\n[사진 1: 가게 앞]\n";
+    const warns = checkPost(post("이 제목은 검색 결과에서 잘릴 만큼 아주아주아주 길게 쓴 제목입니다 정말로요", 2, body)).filter((c) => !c.ok).map((c) => c.text);
+    expect(warns.some((t) => t.startsWith("제목") && t.includes("잘려요"))).toBe(true);
+    expect(warns.some((t) => t.startsWith("태그 2개"))).toBe(true);
+    expect(warns.some((t) => t.startsWith("본문") && t.includes("1,500자"))).toBe(true);
+    expect(warns).toContain("소제목 1개 — 3개 이상으로 나누면 읽기 쉬워요");
+    expect(warns).toContain("이미지 없음 — 대표 이미지(썸네일)가 있으면 클릭이 늘어요");
+    expect(warns).toContain("'(확인 필요)' 1곳 — 발행 전에 채우거나 지우기");
+    expect(warns).toContain("처리 안 된 사진·그림 자리 1곳 — 본문에서 지우기");
+    expect(checkPost(post("짧은제목", 5, "## a"))[0].text).toContain("너무 짧아요");
+  });
+
+  it("앱이 만든 이미지 수를 더한다", () => {
+    expect(checkPost(post("파이썬 코테 필수 문법 정리하기", 6, "본문"), 2).find((c) => c.text.startsWith("이미지"))!.text).toBe("이미지 2장");
+  });
+
+  it("글자 수는 코드·이미지·기호를 빼고 링크는 글자만 센다", () => {
+    expect(textLength("## 제목\n![그림](images/a.png)\n```python\nprint(1)\n```\n**본문**")).toBe(4);
+    expect(textLength("[링크](https://x.y)")).toBe(2);
   });
 });
