@@ -167,9 +167,29 @@ public static class AutoLog
         return "발행 실패";
     }
 
+    /// <summary>
+    /// 자동 발행이 카테고리를 고르지 못해(autofill api 3) 기본 카테고리로 올라갔을 때 결과 뒤에 붙는 말.
+    /// 뒤에 글의 카테고리("상위 > 하위")가 온다 — 승기 님이 블로그에서 직접 옮길 곳.
+    /// </summary>
+    public const string CategoryNote = " · 카테고리 직접 옮기기: ";
+
+    /// <summary>
+    /// 한 곳이라도 발행됐고 글에 카테고리가 있으면 결과 뒤에 <see cref="CategoryNote"/>를 붙인다.
+    /// 발행이 안 됐거나 카테고리가 비어 있으면 그대로. 결과 종류(Classify)는 바뀌지 않는다.
+    /// </summary>
+    public static string WithCategoryNote(string result, string? category)
+    {
+        if (string.IsNullOrWhiteSpace(category)) return result;
+        var outcome = Classify(result);
+        if (outcome is not (AutoLogOutcome.Published or AutoLogOutcome.Partial)) return result;
+        return result + CategoryNote + Clean(category);
+    }
+
     /// <summary>결과 문구 → 종류. MainViewModel이 쓰는 문구 기준.</summary>
     public static AutoLogOutcome Classify(string result)
     {
+        var note = result.IndexOf(CategoryNote, StringComparison.Ordinal);
+        if (note >= 0) result = result[..note];
         if (result.StartsWith("발행 보류", StringComparison.Ordinal)) return AutoLogOutcome.Held;
         if (result.StartsWith(SkippedPrefix, StringComparison.Ordinal)) return AutoLogOutcome.Skipped;
         if (result.EndsWith("자동 발행 꺼짐", StringComparison.Ordinal)) return AutoLogOutcome.Off;

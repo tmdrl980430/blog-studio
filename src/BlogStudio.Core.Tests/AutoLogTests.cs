@@ -136,4 +136,29 @@ public class AutoLogTests
             "2026-11-22 07:10 BFS | 편집자 발행 가능 | 티스토리 채우기 실패 — 본문 칸을 찾지 못했어요"), Now);
         Assert.Equal("최근 24시간 자동 발행 0건 (채우기 실패) — 마지막 기록(11/22 07:10): 티스토리 채우기 실패 — 본문 칸을 찾지 못했어요", w);
     }
+
+    [Fact]
+    public void Category_note_is_added_only_when_published()
+    {
+        Assert.Equal("티스토리 발행 ✓ · 카테고리 직접 옮기기: 개발 > CS 기초",
+            AutoLog.WithCategoryNote("티스토리 발행 ✓", "개발 > CS 기초"));
+        Assert.Equal("티스토리 발행 ✓, 네이버 채우기 실패 · 카테고리 직접 옮기기: 개발 > CS 기초",
+            AutoLog.WithCategoryNote("티스토리 발행 ✓, 네이버 채우기 실패", "개발 > CS 기초"));
+        Assert.Equal("티스토리 채우기 실패", AutoLog.WithCategoryNote("티스토리 채우기 실패", "개발 > CS 기초"));
+        Assert.Equal("발행 보류 — 편집자 판정", AutoLog.WithCategoryNote("발행 보류 — 편집자 판정", "개발 > CS 기초"));
+        Assert.Equal("티스토리 발행 ✓", AutoLog.WithCategoryNote("티스토리 발행 ✓", ""));
+        Assert.Equal("티스토리 발행 ✓", AutoLog.WithCategoryNote("티스토리 발행 ✓", null));
+    }
+
+    [Theory]
+    [InlineData("티스토리 발행 ✓ · 카테고리 직접 옮기기: 개발 > CS 기초", AutoLogOutcome.Published)]
+    [InlineData("티스토리 발행 ✓, 네이버 발행 ✓ · 카테고리 직접 옮기기: 생활 > 맛집·카페", AutoLogOutcome.Published)]
+    [InlineData("티스토리 발행 ✓, 네이버 채우기 실패 · 카테고리 직접 옮기기: 개발 > CS 기초", AutoLogOutcome.Partial)]
+    public void Category_note_does_not_change_outcome(string result, AutoLogOutcome expected)
+    {
+        Assert.Equal(expected, AutoLog.Classify(result));
+        var e = AutoLog.ParseLine("2026-11-27 07:05 제목 | 편집자 발행 가능 | " + result);
+        Assert.Equal(expected, e.Outcome);
+        Assert.Null(AutoLog.NoPublishWarning(new[] { e }, new DateTime(2026, 11, 27, 12, 0, 0)));
+    }
 }
